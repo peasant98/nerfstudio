@@ -214,7 +214,7 @@ def copy_images_list(
     image_paths: List[Path],
     image_dir: Path,
     num_downscales: int,
-    image_prefix: str = "frame_",
+    image_prefix: str = "",
     crop_border_pixels: Optional[int] = None,
     crop_factor: Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
     verbose: bool = False,
@@ -399,7 +399,7 @@ def copy_images(
         if len(image_paths) == 0:
             CONSOLE.log("[bold red]:skull: No usable images in the data folder.")
             sys.exit(1)
-
+        # image_prefix = ''
         copied_images = copy_images_list(
             image_paths=image_paths,
             image_dir=image_dir,

@@ -29,7 +29,7 @@ from nerfstudio.cameras.rays import RayBundle
 from nerfstudio.field_components.encodings import NeRFEncoding
 from nerfstudio.field_components.field_heads import FieldHeadNames
 from nerfstudio.fields.vanilla_nerf_field import NeRFField
-from nerfstudio.model_components.losses import MSELoss, scale_gradients_by_distance_squared
+from nerfstudio.model_components.losses import MSELoss, depth_loss
 from nerfstudio.model_components.ray_samplers import PDFSampler, UniformSampler
 from nerfstudio.model_components.renderers import (
     AccumulationRenderer,
@@ -37,68 +37,40 @@ from nerfstudio.model_components.renderers import (
     RGBRenderer,
 )
 from nerfstudio.models.base_model import Model
+from nerfstudio.models.ds_vanilla_nerf import DSVanillaModelConfig
+from nerfstudio.models.mipnerf import MipNerfModel
 from nerfstudio.models.vanilla_nerf import VanillaModelConfig
 from nerfstudio.utils import colormaps, misc
 
 
-class MipNerfModel(Model):
+class DSMipNerfModel(MipNerfModel):
     """mip-NeRF model
 
     Args:
         config: MipNerf configuration to instantiate model
     """
 
-    config: VanillaModelConfig
+    config: DSVanillaModelConfig
 
     def __init__(
         self,
-        config: VanillaModelConfig,
+        config: DSVanillaModelConfig,
         **kwargs,
     ) -> None:
-        self.field = None
-        assert config.collider_params is not None, "MipNeRF model requires bounding box collider parameters."
+        self.field_coarse = None
+        self.field_fine = None
+        self.temporal_distortion = None
         super().__init__(config=config, **kwargs)
-        assert self.config.collider_params is not None, "mip-NeRF requires collider parameters to be set."
 
     def populate_modules(self):
         """Set the fields and modules"""
         super().populate_modules()
 
-        # setting up fields
-        position_encoding = NeRFEncoding(
-            in_dim=3, num_frequencies=16, min_freq_exp=0.0, max_freq_exp=16.0, include_input=True
-        )
-        direction_encoding = NeRFEncoding(
-            in_dim=3, num_frequencies=4, min_freq_exp=0.0, max_freq_exp=4.0, include_input=True
-        )
-
-        self.field = NeRFField(
-            position_encoding=position_encoding, direction_encoding=direction_encoding, use_integrated_encoding=True
-        )
-
-        # samplers
-        self.sampler_uniform = UniformSampler(num_samples=self.config.num_coarse_samples)
-        self.sampler_pdf = PDFSampler(num_samples=self.config.num_importance_samples, include_original=False)
-
-        # renderers
-        self.renderer_rgb = RGBRenderer(background_color=self.config.background_color)
-        self.renderer_accumulation = AccumulationRenderer()
-        self.renderer_depth = DepthRenderer()
-
-        # losses
-        self.rgb_loss = MSELoss()
-
-        # metrics
-        self.psnr = PeakSignalNoiseRatio(data_range=1.0)
-        self.ssim = structural_similarity_index_measure
-        self.lpips = LearnedPerceptualImagePatchSimilarity(normalize=True)
-
-    def get_param_groups(self) -> Dict[str, List[Parameter]]:
-        param_groups = {}
-        if self.field is None:
-            raise ValueError("populate_fields() must be called before get_param_groups")
-        param_groups["fields"] = list(self.field.parameters())
-        return param_groups
+        # depth sigma
+        if self.config.should_decay_sigma:
+            self.depth_sigma = torch.tensor([self.config.starting_depth_sigma])
+        else:
+            self.depth_sigma = torch.tensor([self.config.depth_sigma])
 
     def get_outputs(self, ray_bundle: RayBundle):
         if self.field is None:
@@ -109,8 +81,6 @@ class MipNerfModel(Model):
 
         # First pass:
         field_outputs_coarse = self.field.forward(ray_samples_uniform)
-        if self.config.use_gradient_scaling:
-            field_outputs_coarse = scale_gradients_by_distance_squared(field_outputs_coarse, ray_samples_uniform)
         weights_coarse = ray_samples_uniform.get_weights(field_outputs_coarse[FieldHeadNames.DENSITY])
         rgb_coarse = self.renderer_rgb(
             rgb=field_outputs_coarse[FieldHeadNames.RGB],
@@ -124,8 +94,6 @@ class MipNerfModel(Model):
 
         # Second pass:
         field_outputs_fine = self.field.forward(ray_samples_pdf)
-        if self.config.use_gradient_scaling:
-            field_outputs_fine = scale_gradients_by_distance_squared(field_outputs_fine, ray_samples_pdf)
         weights_fine = ray_samples_pdf.get_weights(field_outputs_fine[FieldHeadNames.DENSITY])
         rgb_fine = self.renderer_rgb(
             rgb=field_outputs_fine[FieldHeadNames.RGB],
@@ -141,8 +109,17 @@ class MipNerfModel(Model):
             "accumulation_fine": accumulation_fine,
             "depth_coarse": depth_coarse,
             "depth_fine": depth_fine,
+            "weights_fine": weights_fine,
+            "weights_coarse": weights_coarse,
+            "ray_samples_fine": ray_samples_pdf,
+            "ray_samples_coarse": ray_samples_uniform
         }
+
+        if ray_bundle.metadata is not None and "directions_norm" in ray_bundle.metadata:
+            outputs["directions_norm"] = ray_bundle.metadata["directions_norm"]
+
         return outputs
+        
 
     def get_loss_dict(self, outputs, batch, metrics_dict=None):
         image = batch["image"].to(self.device)
@@ -158,9 +135,35 @@ class MipNerfModel(Model):
         )
         rgb_loss_coarse = self.rgb_loss(image_coarse, pred_coarse)
         rgb_loss_fine = self.rgb_loss(image_fine, pred_fine)
-        loss_dict = {"rgb_loss_coarse": rgb_loss_coarse, "rgb_loss_fine": rgb_loss_fine}
-
         
+        # get depth loss
+        sigma = self._get_sigma().to(self.device)
+
+        termination_depth = batch["depth_image"].to(self.device)
+
+        depth_loss_fine = depth_loss(
+                        weights=outputs["weights_fine"],
+                        ray_samples=outputs["ray_samples_fine"],
+                        termination_depth=termination_depth,
+                        predicted_depth=outputs["depth_fine"],
+                        sigma=sigma,
+                        directions_norm=outputs["directions_norm"],
+                        is_euclidean=self.config.is_euclidean_depth,
+                        depth_loss_type=self.config.depth_loss_type,
+                    ) / len(outputs["weights_fine"])
+
+        depth_loss_coarse = depth_loss(
+                        weights=outputs["weights_coarse"],
+                        ray_samples=outputs["ray_samples_coarse"],
+                        termination_depth=termination_depth,
+                        predicted_depth=outputs["depth_coarse"],
+                        sigma=sigma,
+                        directions_norm=outputs["directions_norm"],
+                        is_euclidean=self.config.is_euclidean_depth,
+                        depth_loss_type=self.config.depth_loss_type,
+                    ) / len(outputs["weights_coarse"])
+
+        loss_dict = {"rgb_loss_coarse": rgb_loss_coarse, "rgb_loss_fine": rgb_loss_fine, "depth_loss_fine": depth_loss_fine, "depth_loss_coarse": depth_loss_coarse}
         loss_dict = misc.scale_dict(loss_dict, self.config.loss_coefficients)
         return loss_dict
 
@@ -215,3 +218,12 @@ class MipNerfModel(Model):
         }
         images_dict = {"img": combined_rgb, "accumulation": combined_acc, "depth": combined_depth}
         return metrics_dict, images_dict
+
+    def _get_sigma(self):
+        if not self.config.should_decay_sigma:
+            return self.depth_sigma
+
+        self.depth_sigma = torch.maximum(
+            self.config.sigma_decay_rate * self.depth_sigma, torch.tensor([self.config.depth_sigma])
+        )
+        return self.depth_sigma

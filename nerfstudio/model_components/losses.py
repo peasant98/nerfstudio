@@ -43,6 +43,7 @@ class DepthLossType(Enum):
     DS_NERF = 1
     URF = 2
     SPARSENERF_RANKING = 3
+    SIMPLE_LOSS = 4
 
 
 FORCE_PSEUDODEPTH_LOSS = False
@@ -221,6 +222,16 @@ def pred_normal_loss(
     return (weights[..., 0] * (1.0 - torch.sum(normals * pred_normals, dim=-1))).sum(dim=-1)
 
 
+def basic_depth_loss(
+    termination_depth: Float[Tensor, "*batch 1"],
+    predicted_depth: Float[Tensor, "*batch 1"],
+)-> Float[Tensor, "*batch 1"]:
+    depth_mask = termination_depth > 0
+    MSE = MSELoss()
+    loss = MSE(termination_depth, predicted_depth) * depth_mask
+    return torch.mean(loss)
+
+
 def ds_nerf_depth_loss(
     weights: Float[Tensor, "*batch num_samples 1"],
     termination_depth: Float[Tensor, "*batch 1"],
@@ -320,6 +331,9 @@ def depth_loss(
 
     if depth_loss_type == DepthLossType.URF:
         return urban_radiance_field_depth_loss(weights, termination_depth, predicted_depth, steps, sigma)
+    
+    if depth_loss_type == DepthLossType.SIMPLE_LOSS:
+        return basic_depth_loss(termination_depth, predicted_depth) 
 
     raise NotImplementedError("Provided depth loss type not implemented.")
 

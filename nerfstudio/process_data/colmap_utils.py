@@ -599,8 +599,14 @@ def create_sfm_depth(
             depth_flat = depth.flatten()[:, None]
             overlay = 255.0 * colormaps.apply_depth_colormap(torch.from_numpy(depth_flat)).numpy()
             overlay = overlay.reshape([H, W, 3])
-            input_image_path = input_images_dir / im_data.name
+
+            print(im_data.name)
+            new_im_name = f'{im_data.name}'
+
+            input_image_path = input_images_dir / new_im_name
+
             input_image = cv2.imread(str(input_image_path))  # type: ignore
+            print(input_image_path)
             debug = 0.3 * input_image + 0.7 + overlay
 
             out_name = out_name + ".debug.jpg"

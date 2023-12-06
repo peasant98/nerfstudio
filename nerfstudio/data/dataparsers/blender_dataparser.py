@@ -33,6 +33,11 @@ from nerfstudio.data.scene_box import SceneBox
 from nerfstudio.utils.colors import get_color
 from nerfstudio.utils.io import load_from_json
 
+import os
+import shutil
+import json
+os.environ["OPENCV_IO_ENABLE_OPENEXR"]="1"
+
 
 @dataclass
 class BlenderDataParserConfig(DataParserConfig):
@@ -46,6 +51,8 @@ class BlenderDataParserConfig(DataParserConfig):
     """How much to scale the camera origins by."""
     alpha_color: str = "white"
     """alpha color of background"""
+    depth_unit_scale_factor: float = 1e-3
+    """Scales the depth values to meters. Default value is 0.001 for a millimeter to meter conversion."""
 
 
 @dataclass
@@ -62,19 +69,74 @@ class Blender(DataParser):
         self.scale_factor: float = config.scale_factor
         self.alpha_color = config.alpha_color
 
+    def _add_depths_to_transform_file(self, path, split):
+        print("Adding depths to transform file")
+        print(str(path))
+        transforms_filename = str(path)
+        with open(transforms_filename, "r") as json_file:
+            data = json.load(json_file)
+
+        frames = data['frames']
+        filenames = os.listdir(f'{self.data}/depths')
+        idx_to_depth_filenames = {}
+
+        for filename in filenames:
+            idx = int(filename.split('.')[0][-4:])
+            idx_to_depth_filenames[idx] = filename
+
+        new_frames = []
+        img_idx = 1
+        for frame in frames:
+            new_frame = frame
+            new_fname = idx_to_depth_filenames[img_idx]
+            new_frame['depth_filename'] = f'depths/{new_fname}'
+
+            img_idx += 1
+
+            new_frames.append(new_frame) 
+
+        data['frames'] = new_frames
+
+        with open(transforms_filename, "w") as jsonFile:
+            json.dump(data, jsonFile, indent=2)
+
+        # copy over files to val or test
+        if split != 'train':
+            root_dir = str(self.data)
+            new_path = os.path.join(root_dir, split)
+            train_path = os.path.join(root_dir, 'train')
+
+            if not os.path.exists(new_path):
+                shutil.copytree(train_path, new_path)
+
+
+
     def _generate_dataparser_outputs(self, split="train"):
         if self.alpha_color is not None:
             alpha_color_tensor = get_color(self.alpha_color)
         else:
             alpha_color_tensor = None
+        if split == 'val':
+            split = 'test'
 
+        # add depth filenames to transforms file
+        self._add_depths_to_transform_file(self.data / f"transforms_{split}.json", split)
+        
         meta = load_from_json(self.data / f"transforms_{split}.json")
+
         image_filenames = []
+        depth_filenames = []
         poses = []
+        positions = []
         for frame in meta["frames"]:
-            fname = self.data / Path(frame["file_path"].replace("./", "") + ".png")
+            fname = self.data / Path(frame["file_path"].replace("./", ""))
             image_filenames.append(fname)
+
+            depth_fname = self.data / Path(frame["depth_filename"].replace("./", ""))
+            depth_filenames.append(depth_fname)
+
             poses.append(np.array(frame["transform_matrix"]))
+            # get position to move frames
         poses = np.array(poses).astype(np.float32)
 
         img_0 = imageio.v2.imread(image_filenames[0])
@@ -99,12 +161,19 @@ class Blender(DataParser):
             camera_type=CameraType.PERSPECTIVE,
         )
 
+        # get depth filenames by looking into the depth folder.
+        # meta = load_from_json(self.data / f"transforms_{split}.json")
+
         dataparser_outputs = DataparserOutputs(
             image_filenames=image_filenames,
             cameras=cameras,
             alpha_color=alpha_color_tensor,
             scene_box=scene_box,
             dataparser_scale=self.scale_factor,
+            metadata={
+                "depth_filenames": depth_filenames if len(depth_filenames) > 0 else None,
+                "depth_unit_scale_factor": self.config.depth_unit_scale_factor
+            }
         )
 
         return dataparser_outputs

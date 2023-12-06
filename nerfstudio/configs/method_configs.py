@@ -31,7 +31,7 @@ from nerfstudio.data.datamanagers.base_datamanager import (
     VanillaDataManager,
     VanillaDataManagerConfig,
 )
-from nerfstudio.data.datamanagers.parallel_datamanager import ParallelDataManagerConfig
+from nerfstudio.data.datamanagers.parallel_datamanager import ParallelDataManager, ParallelDataManagerConfig
 from nerfstudio.data.datamanagers.random_cameras_datamanager import (
     RandomCamerasDataManagerConfig,
 )
@@ -59,6 +59,7 @@ from nerfstudio.engine.trainer import TrainerConfig
 from nerfstudio.field_components.temporal_distortions import TemporalDistortionKind
 from nerfstudio.fields.sdf_field import SDFFieldConfig
 from nerfstudio.models.depth_nerfacto import DepthNerfactoModelConfig
+from nerfstudio.models.ds_mipnerf import DSMipNerfModel
 from nerfstudio.models.generfacto import GenerfactoModelConfig
 from nerfstudio.models.instant_ngp import InstantNGPModelConfig
 from nerfstudio.models.mipnerf import MipNerfModel
@@ -68,6 +69,7 @@ from nerfstudio.models.neus_facto import NeuSFactoModelConfig
 from nerfstudio.models.semantic_nerfw import SemanticNerfWModelConfig
 from nerfstudio.models.tensorf import TensoRFModelConfig
 from nerfstudio.models.vanilla_nerf import NeRFModel, VanillaModelConfig
+from nerfstudio.models.ds_vanilla_nerf import DSNeRFModel, DSVanillaModelConfig
 from nerfstudio.pipelines.base_pipeline import VanillaPipelineConfig
 from nerfstudio.pipelines.dynamic_batch import DynamicBatchPipelineConfig
 from nerfstudio.plugins.registry import discover_methods
@@ -81,6 +83,7 @@ descriptions = {
     "mipnerf": "High quality model for bounded scenes. (slow)",
     "semantic-nerfw": "Predicts semantic segmentations and filters out transient objects.",
     "vanilla-nerf": "Original NeRF model. (slow)",
+    "depth-nerf": "Original NeRF model with depth supervision. (slow)",
     "tensorf": "tensorf",
     "dnerf": "Dynamic-NeRF model. (slow)",
     "phototourism": "Uses the Phototourism data.",
@@ -324,6 +327,26 @@ method_configs["mipnerf"] = TrainerConfig(
     },
 )
 
+method_configs["ds-mipnerf"] = TrainerConfig(
+    method_name="ds-mipnerf",
+    pipeline=VanillaPipelineConfig(
+        datamanager=ParallelDataManagerConfig(_target=VanillaDataManager[DepthDataset], dataparser=NerfstudioDataParserConfig(), train_num_rays_per_batch=1024),
+        model=DSVanillaModelConfig(
+            _target=DSMipNerfModel,
+            loss_coefficients={"rgb_loss_coarse": 0.1, "rgb_loss_fine": 1.0},
+            num_coarse_samples=128,
+            num_importance_samples=128,
+            eval_num_rays_per_chunk=1024,
+        ),
+    ),
+    optimizers={
+        "fields": {
+            "optimizer": RAdamOptimizerConfig(lr=5e-4, eps=1e-08),
+            "scheduler": None,
+        }
+    },
+)
+
 method_configs["semantic-nerfw"] = TrainerConfig(
     method_name="semantic-nerfw",
     steps_per_eval_batch=500,
@@ -360,6 +383,27 @@ method_configs["vanilla-nerf"] = TrainerConfig(
             dataparser=BlenderDataParserConfig(),
         ),
         model=VanillaModelConfig(_target=NeRFModel),
+    ),
+    optimizers={
+        "fields": {
+            "optimizer": RAdamOptimizerConfig(lr=5e-4, eps=1e-08),
+            "scheduler": None,
+        },
+        "temporal_distortion": {
+            "optimizer": RAdamOptimizerConfig(lr=5e-4, eps=1e-08),
+            "scheduler": None,
+        },
+    },
+)
+
+method_configs["ds-vanilla-nerf"] = TrainerConfig(
+    method_name="ds-vanilla-nerf",
+    pipeline=VanillaPipelineConfig(
+        datamanager=VanillaDataManagerConfig(
+            _target=VanillaDataManager[DepthDataset],
+            dataparser=BlenderDataParserConfig(),
+        ),
+        model=DSVanillaModelConfig(_target=DSNeRFModel),
     ),
     optimizers={
         "fields": {

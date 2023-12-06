@@ -93,9 +93,9 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
     """
     gpu: bool = True
     """If True, use GPU."""
-    use_sfm_depth: bool = False
+    use_sfm_depth: bool = True
     """If True, export and use depth maps induced from SfM points."""
-    include_depth_debug: bool = False
+    include_depth_debug: bool = True
     """If --use-sfm-depth and this flag is True, also export debug images showing Sf overlaid upon input images."""
     same_dimensions: bool = True
     """Whether to assume all images are same dimensions and so to use fast downscaling with no autorotation."""
