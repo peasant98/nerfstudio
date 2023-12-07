@@ -118,8 +118,15 @@ class DepthDataset(InputDataset):
         depth_image = get_depth_image_from_path(
             filepath=filepath, height=height, width=width, scale_factor=scale_factor
         )
-
-        return {"depth_image": depth_image}
+        
+        # get uncertainty image if it exists
+        uncertainty_image = None
+        uncertainty_image_exists = False
+        
+        if not uncertainty_image_exists:
+            return {"depth_image": depth_image}
+        else:
+            return {"depth_image": depth_image, "uncertainty_image": uncertainty_image}
 
     def _find_transform(self, image_path: Path) -> Union[Path, None]:
         while image_path.parent != image_path:

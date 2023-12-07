@@ -326,9 +326,10 @@ class DepthRenderer(nn.Module):
         method: Depth calculation method.
     """
 
-    def __init__(self, method: Literal["median", "expected"] = "median") -> None:
+    def __init__(self, method: Literal["median", "expected"] = "median", compute_uncertainty=False) -> None:
         super().__init__()
         self.method = method
+        self.compute_uncertainty = compute_uncertainty
 
     def forward(
         self,
@@ -348,6 +349,7 @@ class DepthRenderer(nn.Module):
         Returns:
             Outputs of depth values.
         """
+        
 
         if self.method == "median":
             steps = (ray_samples.frustums.starts + ray_samples.frustums.ends) / 2
@@ -377,7 +379,13 @@ class DepthRenderer(nn.Module):
                 depth = torch.sum(weights * steps, dim=-2) / (torch.sum(weights, -2) + eps)
 
             depth = torch.clip(depth, steps.min(), steps.max())
-
+            
+            # compute uncertainty along a ray
+            uncertainty = torch.sum(weights * (steps - depth.unsqueeze(-1))**2, dim=-2) / (torch.sum(weights, -2) + eps)
+            
+            if self.compute_uncertainty:
+                return depth, uncertainty
+            
             return depth
 
         raise NotImplementedError(f"Method {self.method} not implemented")
