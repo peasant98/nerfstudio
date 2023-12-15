@@ -670,7 +670,7 @@ def create_sfm_depth(
         depth_path = output_dir / out_name
         if depth_path.suffix == ".jpg":
             depth_path = depth_path.with_suffix(".png")
-        cv2.imwrite(str(depth_path), depth_img)  # type: ignore
+        # cv2.imwrite(str(depth_path), depth_img)  # type: ignore
 
         image_id_to_depth_path[im_id] = depth_path
 
@@ -683,7 +683,7 @@ def create_sfm_depth(
             overlay = overlay.reshape([H, W, 3])
 
             print(im_data.name)
-            new_im_name = f'{im_data.name}'
+            new_im_name = f'frame_0{im_data.name}'
 
             input_image_path = input_images_dir / new_im_name
 
