@@ -65,7 +65,7 @@ class ColmapDataParserConfig(DataParserConfig):
     """The method to use to center the poses."""
     auto_scale_poses: bool = True
     """Whether to automatically scale the poses to fit in +/- 1 bounding box."""
-    eval_mode: Literal["fraction", "filename", "interval", "all"] = "interval"
+    eval_mode: Literal["fraction", "filename", "interval", "all"] = "fraction"
     """
     The method to use for splitting the dataset into train and eval. 
     Fraction splits based on a percentage for train and the remaining for eval.
@@ -73,7 +73,7 @@ class ColmapDataParserConfig(DataParserConfig):
     Interval uses every nth frame for eval (used by most academic papers, e.g. MipNerf360, GSplat).
     All uses all the images for any split.
     """
-    train_split_fraction: float = 0.9
+    train_split_fraction: float = 0.5
     """The fraction of images to use for training. The remaining images are for eval."""
     eval_interval: int = 8
     """The interval between frames to use for eval. Only used when eval_mode is eval-interval."""
