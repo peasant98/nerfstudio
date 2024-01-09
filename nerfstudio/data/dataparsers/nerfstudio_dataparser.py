@@ -318,6 +318,8 @@ class Nerfstudio(DataParser):
         if "applied_scale" in meta:
             applied_scale = float(meta["applied_scale"])
             scale_factor *= applied_scale
+        if metadata is None:
+            metadata = {}
         dataparser_outputs = DataparserOutputs(
             image_filenames=image_filenames,
             cameras=cameras,

@@ -685,7 +685,8 @@ def create_sfm_depth(
             overlay = overlay.reshape([H, W, 3])
 
             print(im_data.name)
-            new_im_name = f'frame_0{im_data.name}'
+            # new_im_name = f'frame_0{im_data.name}'
+            new_im_name = f'{im_data.name}'
 
             input_image_path = input_images_dir / new_im_name
 

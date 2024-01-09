@@ -36,7 +36,7 @@ class DepthNerfactoModelConfig(NerfactoModelConfig):
     """Additional parameters for depth supervision."""
 
     _target: Type = field(default_factory=lambda: DepthNerfactoModel)
-    depth_loss_mult: float = 0.000001
+    depth_loss_mult: float = 100
     """Lambda of the depth loss."""
     is_euclidean_depth: bool = False
     """Whether input depth maps are Euclidean distances (or z-distances)."""

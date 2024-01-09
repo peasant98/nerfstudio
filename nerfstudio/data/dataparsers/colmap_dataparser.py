@@ -40,6 +40,7 @@ from nerfstudio.data.utils.dataparsers_utils import (
     get_train_eval_split_interval,
     get_train_eval_split_all,
 )
+import os
 
 MAX_AUTO_RESOLUTION = 1600
 
@@ -250,7 +251,9 @@ class ColmapDataParser(DataParser):
         mask_filenames = []
         depth_filenames = []
         poses = []
-
+        idx = 0
+        imgs = sorted(os.listdir(self.config.data / self.config.images_path))
+        print(imgs)
         fx = []
         fy = []
         cx = []
@@ -276,13 +279,19 @@ class ColmapDataParser(DataParser):
                     p2=float(frame["p2"]) if "p2" in frame else 0.0,
                 )
             )
+            
+            filepath = (self.config.data / self.config.images_path / Path(imgs[idx]))
+            print(filepath)
 
-            image_filenames.append(Path(frame["file_path"]))
+            # image_filenames.append(Path(frame["file_path"]))
+            image_filenames.append(filepath)
+            
             poses.append(frame["transform_matrix"])
             if "mask_path" in frame:
                 mask_filenames.append(Path(frame["mask_path"]))
             if "depth_path" in frame:
                 depth_filenames.append(Path(frame["depth_path"]))
+            idx += 1
 
         assert len(mask_filenames) == 0 or (
             len(mask_filenames) == len(image_filenames)
@@ -481,7 +490,6 @@ class ColmapDataParser(DataParser):
             rel_part = filepath.relative_to(parent)
             base_part = parent.parent / (str(parent.name) + f"_{self._downscale_factor}")
             return base_part / rel_part
-
         filepath = next(iter(image_filenames))
         if self._downscale_factor is None:
             if self.config.downscale_factor is None:
