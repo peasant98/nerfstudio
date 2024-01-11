@@ -107,11 +107,11 @@ class ImagesToNerfstudioDataset(ColmapConverterToNerfstudioDataset):
             summary_log.append(f"Starting with {num_frames} images")
 
         # Run COLMAP
-        if not self.skip_colmap:
-            require_cameras_exist = True
-            self._run_colmap()
-            # Colmap uses renamed images
-            image_rename_map = None
+        # if not self.skip_colmap:
+        #     require_cameras_exist = True
+        #     self._run_colmap()
+        #     # Colmap uses renamed images
+        #     image_rename_map = None
 
         # Export depth maps
         image_id_to_depth_path, log_tmp = self._export_depth()
@@ -120,12 +120,12 @@ class ImagesToNerfstudioDataset(ColmapConverterToNerfstudioDataset):
         if require_cameras_exist and not (self.absolute_colmap_model_path / "cameras.bin").exists():
             raise RuntimeError(f"Could not find existing COLMAP results ({self.colmap_model_path / 'cameras.bin'}).")
 
-        summary_log += self._save_transforms(
-            num_frames,
-            image_id_to_depth_path,
-            None,
-            image_rename_map,
-        )
+        # summary_log += self._save_transforms(
+        #     num_frames,
+        #     image_id_to_depth_path,
+        #     None,
+        #     image_rename_map,
+        # )
 
         CONSOLE.log("[bold green]:tada: :tada: :tada: All DONE :tada: :tada: :tada:")
 

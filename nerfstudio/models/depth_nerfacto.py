@@ -36,8 +36,10 @@ class DepthNerfactoModelConfig(NerfactoModelConfig):
     """Additional parameters for depth supervision."""
 
     _target: Type = field(default_factory=lambda: DepthNerfactoModel)
-    depth_loss_mult: float = 100
+    depth_loss_mult: float = 0.01
     """Lambda of the depth loss."""
+    uncertainty_weight: float = 1.0
+    """Weight of the uncertainty in the loss if uncertainty weighted loss is used."""
     is_euclidean_depth: bool = False
     """Whether input depth maps are Euclidean distances (or z-distances)."""
     depth_sigma: float = 0.01
@@ -91,7 +93,10 @@ class DepthNerfactoModel(NerfactoModel):
                 sigma = self._get_sigma().to(self.device)
                 # get ground truth depth and uncertainty
                 termination_depth = batch["depth_image"].to(self.device)
-                # termination_uncertainty = batch["depth_uncertainty"].to(self.device)
+                
+                termination_uncertainty = None
+                if self.config.depth_loss_type in (DepthLossType.DEPTH_UNCERTAINTY_WEIGHTED_LOSS, DepthLossType.DENSE_DEPTH_PRIORS_LOSS):
+                    termination_uncertainty = batch["depth_uncertainty"].to(self.device)
                 
                 # compute the depth loss for each weight
                 for i in range(len(outputs["weights_list"])):
@@ -104,8 +109,9 @@ class DepthNerfactoModel(NerfactoModel):
                         directions_norm=outputs["directions_norm"],
                         is_euclidean=self.config.is_euclidean_depth,
                         depth_loss_type=self.config.depth_loss_type,
-                        # termination_uncertainty=termination_uncertainty,
-                        predicted_uncertainty=outputs["depth_uncertainty"]
+                        termination_uncertainty=termination_uncertainty,
+                        predicted_uncertainty=outputs["depth_uncertainty"],
+                        uncertainty_weight=self.config.uncertainty_weight,
                     ) / len(outputs["weights_list"])
             elif self.config.depth_loss_type in (DepthLossType.SPARSENERF_RANKING,):
                 metrics_dict["depth_ranking"] = depth_ranking_loss(

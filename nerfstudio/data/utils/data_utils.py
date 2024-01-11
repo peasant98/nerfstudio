@@ -56,15 +56,16 @@ def get_semantics_and_mask_tensors_from_path(
     return semantics, mask
 
 
-def get_depth_image_from_path(
+def get_depth_or_uncertainty_image_from_path(
     filepath: Path,
     height: int,
     width: int,
     scale_factor: float,
     interpolation: int = cv2.INTER_NEAREST,
 ) -> torch.Tensor:
-    """Loads, rescales and resizes depth images.
-    Filepath points to a 16-bit or 32-bit depth image, or a numpy array `*.npy`.
+    """Loads, rescales and resizes depth or uncertainty images.
+    Filepath points to a 16-bit or 32-bit depth or uncertainty image, or a numpy array `*.npy`.
+    We elect to use npy for accuracy of float32 depth or uncertainty values.
 
     Args:
         filepath: Path to depth image.

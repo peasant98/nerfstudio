@@ -305,9 +305,10 @@ def depth_uncertainty_weighted_loss(
     termination_uncertainty: Float[Tensor, "*batch 1"],
     predicted_uncertainty: Float[Tensor, "*batch 1"],
     steps: Float[Tensor, "*batch num_samples 1"],
+    uncertainty_weight: Float[Tensor, "0"] = 1.0
 ) -> Float[Tensor, "*batch 1"]:
     """
-    Depth loss from VTNFs.
+    Depth loss from Visual Tactile Neural Fields
     Depth loss weighted by corresponding uncertainty
     Args:
         weights: Weights predicted for each sample.
@@ -320,7 +321,14 @@ def depth_uncertainty_weighted_loss(
         Depth loss scalar.
         
     """
-    return 0
+    depth_mask = termination_depth > 0
+    MSE = MSELoss()
+    loss = MSE(termination_depth, predicted_depth) * depth_mask
+    
+    # include uncertainty weighting
+    uncertainty_component = torch.exp(-uncertainty_weight * termination_uncertainty)
+    loss = uncertainty_component * loss
+    return torch.mean(loss)
 
 
 def dense_depth_priors_loss(
@@ -362,7 +370,8 @@ def depth_loss(
     is_euclidean: bool,
     depth_loss_type: DepthLossType,
     termination_uncertainty: Float[Tensor, "*batch 1"] = None,
-    predicted_uncertainty: Float[Tensor, "*batch 1"] = None
+    predicted_uncertainty: Float[Tensor, "*batch 1"] = None,
+    uncertainty_weight: Float[Tensor, "0"] = 1.0
     
 ) -> Float[Tensor, "0"]:
     """Implementation of depth losses.
@@ -400,7 +409,7 @@ def depth_loss(
         return dense_depth_priors_loss(termination_depth, predicted_depth, termination_uncertainty, predicted_uncertainty)
 
     if depth_loss_type == DepthLossType.DEPTH_UNCERTAINTY_WEIGHTED_LOSS and termination_uncertainty is not None and predicted_uncertainty is not None:
-        return depth_uncertainty_weighted_loss(weights, termination_depth, predicted_depth, termination_uncertainty, predicted_uncertainty, steps)
+        return depth_uncertainty_weighted_loss(weights, termination_depth, predicted_depth, termination_uncertainty, predicted_uncertainty, steps, uncertainty_weight=uncertainty_weight)
     
     raise NotImplementedError("Provided depth loss type not implemented.")
 

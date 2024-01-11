@@ -35,8 +35,8 @@ from pathlib import Path
 import json
 
 
-class DepthDataset(InputDataset):
-    """Dataset that returns images and depths. If no depths are found, then we generate them with Zoe Depth.
+class DepthUncertaintyDataset(InputDataset):
+    """Dataset that returns images, depths, and depth uncertainties. If no depths are found, then we generate them with Zoe Depth.
 
     Args:
         dataparser_outputs: description of where and how to read input images.
@@ -105,15 +105,13 @@ class DepthDataset(InputDataset):
 
         self.depth_filenames = self.metadata["depth_filenames"]
         self.depth_unit_scale_factor = self.metadata["depth_unit_scale_factor"]
-        
-        self.uncertainty_filenames = self.metadata["uncertainty_filenames"]
 
     def get_metadata(self, data: Dict) -> Dict:
         if self.depth_filenames is None:
             return {"depth_image": self.depths[data["image_idx"]]}
 
         filepath = self.depth_filenames[data["image_idx"]]
-        # print(filepath, data["image_idx"])
+        print(filepath, data["image_idx"])
         height = int(self._dataparser_outputs.cameras.height[data["image_idx"]])
         width = int(self._dataparser_outputs.cameras.width[data["image_idx"]])
 
@@ -123,12 +121,9 @@ class DepthDataset(InputDataset):
             filepath=filepath, height=height, width=width, scale_factor=scale_factor
         )
         
-        # get uncertainty image if it exists (worry about loss function later)
-        uncertainty_filepath = self.uncertainty_filenames[data["image_idx"]]
-        uncertainty_image_exists = self.uncertainty_filenames is not None
-        uncertainty_image = get_depth_or_uncertainty_image_from_path(
-            filepath=uncertainty_filepath, height=height, width=width, scale_factor=scale_factor
-        )
+        # get uncertainty image if it exists
+        uncertainty_image = None
+        uncertainty_image_exists = False
         
         if not uncertainty_image_exists:
             return {"depth_image": depth_image}
