@@ -173,6 +173,20 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
                     verbose=self.verbose,
                 )
             )
+            
+            # if an uncertainty folder exists, downscale it as well
+            uncertainty_dir = self.output_dir / "uncertainty"
+            if uncertainty_dir.exists():
+                summary_log.append(
+                    process_data_utils.downscale_images(
+                        uncertainty_dir,
+                        self.num_downscales,
+                        folder_name="uncertainties",
+                        nearest_neighbor=True,
+                        verbose=self.verbose,
+                    )
+                )
+            
             # return image_id_to_depth_path, summary_log
             return None, summary_log
 

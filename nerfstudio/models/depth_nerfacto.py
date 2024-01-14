@@ -50,7 +50,7 @@ class DepthNerfactoModelConfig(NerfactoModelConfig):
     """Starting uncertainty around depth values in meters (defaults to 0.2m)."""
     sigma_decay_rate: float = 0.99985
     """Rate of exponential decay."""
-    depth_loss_type: DepthLossType = DepthLossType.DS_NERF
+    depth_loss_type: DepthLossType = DepthLossType.DEPTH_UNCERTAINTY_WEIGHTED_LOSS
     """Depth loss type."""
 
 
@@ -88,7 +88,7 @@ class DepthNerfactoModel(NerfactoModel):
                 raise ValueError(
                     f"Forcing pseudodepth loss, but depth loss type ({self.config.depth_loss_type}) must be one of {losses.PSEUDODEPTH_COMPATIBLE_LOSSES}"
                 )
-            if self.config.depth_loss_type in (DepthLossType.DS_NERF, DepthLossType.URF, DepthLossType.SIMPLE_LOSS):
+            if self.config.depth_loss_type in (DepthLossType.DS_NERF, DepthLossType.URF, DepthLossType.SIMPLE_LOSS, DepthLossType.DEPTH_UNCERTAINTY_WEIGHTED_LOSS, DepthLossType.DENSE_DEPTH_PRIORS_LOSS):
                 metrics_dict["depth_loss"] = 0.0
                 sigma = self._get_sigma().to(self.device)
                 # get ground truth depth and uncertainty
@@ -97,7 +97,6 @@ class DepthNerfactoModel(NerfactoModel):
                 termination_uncertainty = None
                 if self.config.depth_loss_type in (DepthLossType.DEPTH_UNCERTAINTY_WEIGHTED_LOSS, DepthLossType.DENSE_DEPTH_PRIORS_LOSS):
                     termination_uncertainty = batch["depth_uncertainty"].to(self.device)
-                
                 # compute the depth loss for each weight
                 for i in range(len(outputs["weights_list"])):
                     metrics_dict["depth_loss"] += depth_loss(

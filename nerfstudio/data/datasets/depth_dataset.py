@@ -18,6 +18,10 @@ Depth dataset.
 
 from typing import Dict
 
+import os
+import cv2
+import matplotlib.cm as cm
+from matplotlib import pyplot as plt
 import numpy as np
 
 from nerfstudio.data.dataparsers.base_dataparser import DataparserOutputs
@@ -106,8 +110,6 @@ class DepthDataset(InputDataset):
         self.depth_filenames = self.metadata["depth_filenames"]
         self.depth_unit_scale_factor = self.metadata["depth_unit_scale_factor"]
         
-        self.uncertainty_filenames = self.metadata["uncertainty_filenames"]
-
     def get_metadata(self, data: Dict) -> Dict:
         if self.depth_filenames is None:
             return {"depth_image": self.depths[data["image_idx"]]}
@@ -123,17 +125,29 @@ class DepthDataset(InputDataset):
             filepath=filepath, height=height, width=width, scale_factor=scale_factor
         )
         
-        # get uncertainty image if it exists (worry about loss function later)
-        uncertainty_filepath = self.uncertainty_filenames[data["image_idx"]]
-        uncertainty_image_exists = self.uncertainty_filenames is not None
-        uncertainty_image = get_depth_or_uncertainty_image_from_path(
-            filepath=uncertainty_filepath, height=height, width=width, scale_factor=scale_factor
-        )
+        # get uncertainty image if it exists.
+        # parse file path to get uncertainty file path
+        path_segments = str(filepath.absolute()).split('/')
+        if "_2" in path_segments[-2] or "_4" in path_segments[-2] or "_8" in path_segments[-2]:
+            path_segments[-2] = 'uncertainties' + path_segments[-2][-2:]
         
-        if not uncertainty_image_exists:
+        full_path = os.path.join(*path_segments)
+        full_uncertainty_path = Path('/' + full_path)
+        
+        use_depth_uncertainty = False
+        
+        if os.path.exists(full_uncertainty_path):
+            use_depth_uncertainty = True
+        
+        if not use_depth_uncertainty:
             return {"depth_image": depth_image}
         else:
-            return {"depth_image": depth_image, "uncertainty_image": uncertainty_image}
+            # get uncertainty image if it exists (worry about loss function later)
+            uncertainty_image = get_depth_or_uncertainty_image_from_path(
+                filepath=full_uncertainty_path, height=height, width=width, scale_factor=scale_factor
+            )
+            
+            return {"depth_image": depth_image, "depth_uncertainty": uncertainty_image}
 
     def _find_transform(self, image_path: Path) -> Union[Path, None]:
         while image_path.parent != image_path:
