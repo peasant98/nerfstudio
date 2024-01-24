@@ -135,10 +135,8 @@ class DepthDataset(InputDataset):
         full_uncertainty_path = Path('/' + full_path)
         
         use_depth_uncertainty = False
-        
-        if os.path.exists(full_uncertainty_path):
+        if os.path.exists(full_uncertainty_path) and 'uncertainties' in str(full_uncertainty_path):
             use_depth_uncertainty = True
-        
         if not use_depth_uncertainty:
             return {"depth_image": depth_image}
         else:

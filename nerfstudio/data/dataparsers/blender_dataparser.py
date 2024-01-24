@@ -120,7 +120,7 @@ class Blender(DataParser):
             split = 'test'
 
         # add depth filenames to transforms file
-        self._add_depths_to_transform_file(self.data / f"transforms_{split}.json", split)
+        # self._add_depths_to_transform_file(self.data / f"transforms_{split}.json", split)
         
         meta = load_from_json(self.data / f"transforms_{split}.json")
 
