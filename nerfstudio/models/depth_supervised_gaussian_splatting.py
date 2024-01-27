@@ -20,7 +20,7 @@ NeRF implementation that combines many recent advancements.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Type, Union, Literal
+from typing import Dict, List, Optional, Tuple, Type, Union
 from nerfstudio.data.scene_box import OrientedBox
 
 import torch
@@ -34,8 +34,6 @@ from gsplat._torch_impl import quat_to_rotmat
 from nerfstudio.engine.callbacks import TrainingCallback, TrainingCallbackAttributes, TrainingCallbackLocation
 from nerfstudio.engine.optimizers import Optimizers
 from nerfstudio.models.base_model import Model, ModelConfig
-from nerfstudio.model_components.renderers import RGBRenderer
-
 import math
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
@@ -159,8 +157,6 @@ class GaussianSplattingModelConfig(ModelConfig):
     """threshold of ratio of gaussian max to min scale before applying regularization
     loss from the PhysGaussian paper
     """
-    background_color: Literal["random", "last_sample", "black", "white"] = "last_sample"
-    
 
 
 class GaussianSplattingModel(Model):
@@ -212,8 +208,6 @@ class GaussianSplattingModel(Model):
 
         # metrics
         self.psnr = PeakSignalNoiseRatio(data_range=1.0)
-        self.renderer_rgb = RGBRenderer(background_color=self.config.background_color)
-        
         self.ssim = SSIM(data_range=1.0, size_average=True, channel=3)
         self.lpips = LearnedPerceptualImagePatchSimilarity(normalize=True)
         self.step = 0
@@ -730,6 +724,7 @@ class GaussianSplattingModel(Model):
             )[
                 ..., 0:1
             ]  # type: ignore
+
         return {"rgb": rgb, "depth": depth_im}  # type: ignore
 
     def get_metrics_dict(self, outputs, batch) -> Dict[str, torch.Tensor]:
@@ -747,7 +742,6 @@ class GaussianSplattingModel(Model):
             gt_img = batch["image"]
         metrics_dict = {}
         gt_rgb = gt_img.to(self.device)  # RGB or RGBA image
-        gt_rgb = self.renderer_rgb.blend_background(gt_rgb)
         predicted_rgb = outputs["rgb"]
         metrics_dict["psnr"] = self.psnr(predicted_rgb, gt_rgb)
 
@@ -769,8 +763,6 @@ class GaussianSplattingModel(Model):
             gt_img = TF.resize(batch["image"].permute(2, 0, 1), newsize, antialias=None).permute(1, 2, 0)
         else:
             gt_img = batch["image"]
-        gt_img = self.renderer_rgb.blend_background(gt_img)
-        
         Ll1 = torch.abs(gt_img - outputs["rgb"]).mean()
         simloss = 1 - self.ssim(gt_img.permute(2, 0, 1)[None, ...], outputs["rgb"].permute(2, 0, 1)[None, ...])
         if self.config.use_scale_regularization and self.step % 10 == 0:

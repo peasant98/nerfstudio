@@ -182,7 +182,8 @@ class DSNeRFModel(NeRFModel):
             weights=weights_coarse,
         )
         accumulation_coarse = self.renderer_accumulation(weights_coarse)
-        depth_coarse = self.renderer_depth(weights_coarse, ray_samples_uniform)
+        with torch.no_grad():
+            depth_coarse = self.renderer_depth(weights_coarse, ray_samples_uniform)
 
         # pdf sampling
         ray_samples_pdf = self.sampler_pdf(ray_bundle, ray_samples_uniform, weights_coarse)
@@ -200,7 +201,8 @@ class DSNeRFModel(NeRFModel):
             weights=weights_fine,
         )
         accumulation_fine = self.renderer_accumulation(weights_fine)
-        depth_fine = self.renderer_depth(weights_fine, ray_samples_pdf)
+        with torch.no_grad():
+            depth_fine = self.renderer_depth(weights_fine, ray_samples_pdf)
 
         outputs = {
             "rgb_coarse": rgb_coarse,
@@ -264,6 +266,8 @@ class DSNeRFModel(NeRFModel):
                         is_euclidean=self.config.is_euclidean_depth,
                         depth_loss_type=self.config.depth_loss_type,
                     ) / len(outputs["weights_coarse"])
+        
+        
 
         # compute depth loss
         loss_dict = {"rgb_loss_coarse": rgb_loss_coarse, "rgb_loss_fine": rgb_loss_fine, "depth_loss_fine": depth_loss_fine, "depth_loss_coarse": depth_loss_coarse}

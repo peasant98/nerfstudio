@@ -84,7 +84,7 @@ class ColmapDataParserConfig(DataParserConfig):
     """Path to images directory relative to the data path."""
     masks_path: Optional[Path] = None
     """Path to masks directory. If not set, masks are not loaded."""
-    depths_path: Optional[Path] = None
+    depths_path: Optional[Path] = Path("depths")
     """Path to depth maps directory. If not set, depths are not loaded."""
     colmap_path: Path = Path("colmap/sparse/0")
     """Path to the colmap reconstruction directory relative to the data path."""
@@ -170,6 +170,7 @@ class ColmapDataParser(DataParser):
                 frame["mask_path"] = (
                     (self.config.data / self.config.masks_path / im_data.name).with_suffix(".png").as_posix()
                 )
+            print(self.config.depths_path)
             if self.config.depths_path is not None:
                 frame["depth_path"] = (
                     (self.config.data / self.config.depths_path / im_data.name).with_suffix(".png").as_posix()
@@ -281,7 +282,6 @@ class ColmapDataParser(DataParser):
             )
             
             filepath = (self.config.data / self.config.images_path / Path(imgs[idx]))
-            print(filepath)
 
             # image_filenames.append(Path(frame["file_path"]))
             image_filenames.append(filepath)

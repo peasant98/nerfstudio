@@ -36,7 +36,7 @@ class DepthNerfactoModelConfig(NerfactoModelConfig):
     """Additional parameters for depth supervision."""
 
     _target: Type = field(default_factory=lambda: DepthNerfactoModel)
-    depth_loss_mult: float = 0.01
+    depth_loss_mult: float = 0.1
     """Lambda of the depth loss."""
     uncertainty_weight: float = 1.0
     """Weight of the uncertainty in the loss if uncertainty weighted loss is used."""
@@ -50,7 +50,7 @@ class DepthNerfactoModelConfig(NerfactoModelConfig):
     """Starting uncertainty around depth values in meters (defaults to 0.2m)."""
     sigma_decay_rate: float = 0.99985
     """Rate of exponential decay."""
-    depth_loss_type: DepthLossType = DepthLossType.DEPTH_UNCERTAINTY_WEIGHTED_LOSS
+    depth_loss_type: DepthLossType = DepthLossType.DS_NERF
     """Depth loss type."""
 
 

@@ -672,7 +672,9 @@ def create_sfm_depth(
         depth_path = output_dir / out_name
         if depth_path.suffix == ".jpg":
             depth_path = depth_path.with_suffix(".png")
-        # cv2.imwrite(str(depth_path), depth_img)  # type: ignore
+            
+        # commented
+        cv2.imwrite(str(depth_path), depth_img)  # type: ignore
 
         image_id_to_depth_path[im_id] = depth_path
 

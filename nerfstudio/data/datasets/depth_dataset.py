@@ -50,7 +50,6 @@ class DepthDataset(InputDataset):
     def __init__(self, dataparser_outputs: DataparserOutputs, scale_factor: float = 1.0):
         super().__init__(dataparser_outputs, scale_factor)
         # if there are no depth images than we want to generate them all with zoe depth
-
         if len(dataparser_outputs.image_filenames) > 0 and (
             "depth_filenames" not in dataparser_outputs.metadata.keys()
             or dataparser_outputs.metadata["depth_filenames"] is None
