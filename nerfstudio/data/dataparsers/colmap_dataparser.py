@@ -73,7 +73,7 @@ class ColmapDataParserConfig(DataParserConfig):
     Interval uses every nth frame for eval (used by most academic papers, e.g. MipNerf360, GSplat).
     All uses all the images for any split.
     """
-    train_split_fraction: float = 0.5
+    train_split_fraction: float = 0.1
     """The fraction of images to use for training. The remaining images are for eval."""
     eval_interval: int = 8
     """The interval between frames to use for eval. Only used when eval_mode is eval-interval."""

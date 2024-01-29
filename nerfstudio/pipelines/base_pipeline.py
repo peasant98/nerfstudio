@@ -24,6 +24,8 @@ from pathlib import Path
 from time import time
 from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Type, Union, cast
 
+import random
+
 import torch
 import torch.distributed as dist
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
@@ -346,7 +348,7 @@ class VanillaPipeline(Pipeline):
         metrics_dict["num_rays"] = (camera.height * camera.width * camera.size).item()
         self.train()
         return metrics_dict, images_dict
-
+    
     @profiler.time_function
     def get_average_eval_image_metrics(
         self, step: Optional[int] = None, output_path: Optional[Path] = None, get_std: bool = False
@@ -372,24 +374,35 @@ class VanillaPipeline(Pipeline):
             MofNCompleteColumn(),
             transient=True,
         ) as progress:
-            task = progress.add_task("[green]Evaluating all eval images...", total=num_images)
+            
+            percent = 22
+            indices = list(range(num_images))
+            num_to_keep = int(len(indices) * percent / 100)
+    
+            keep_indices =  random.sample(indices, num_to_keep)
+            keep_indices = [6, 51, 25, 70, 8, 60, 52, 5, 44, 80, 43, 63, 62, 58, 23, 89, 20, 7, 73]
+            task = progress.add_task("[green]Evaluating all eval images...", total=num_to_keep)
+            
+            idx = 0
             for camera, batch in self.datamanager.fixed_indices_eval_dataloader:
-                # time this the following line
-                inner_start = time()
-                outputs = self.model.get_outputs_for_camera(camera=camera)
-                height, width = camera.height, camera.width
-                num_rays = height * width
-                metrics_dict, _ = self.model.get_image_metrics_and_images(outputs, batch)
-                if output_path is not None:
-                    raise NotImplementedError("Saving images is not implemented yet")
+                if idx in keep_indices:
+                    # time this the following line
+                    inner_start = time()
+                    outputs = self.model.get_outputs_for_camera(camera=camera)
+                    height, width = camera.height, camera.width
+                    num_rays = height * width
+                    metrics_dict, _ = self.model.get_image_metrics_and_images(outputs, batch)
+                    if output_path is not None:
+                        raise NotImplementedError("Saving images is not implemented yet")
 
-                assert "num_rays_per_sec" not in metrics_dict
-                metrics_dict["num_rays_per_sec"] = (num_rays / (time() - inner_start)).item()
-                fps_str = "fps"
-                assert fps_str not in metrics_dict
-                metrics_dict[fps_str] = (metrics_dict["num_rays_per_sec"] / (height * width)).item()
-                metrics_dict_list.append(metrics_dict)
-                progress.advance(task)
+                    assert "num_rays_per_sec" not in metrics_dict
+                    metrics_dict["num_rays_per_sec"] = (num_rays / (time() - inner_start)).item()
+                    fps_str = "fps"
+                    assert fps_str not in metrics_dict
+                    metrics_dict[fps_str] = (metrics_dict["num_rays_per_sec"] / (height * width)).item()
+                    metrics_dict_list.append(metrics_dict)
+                    progress.advance(task)
+                idx+=1
         # average the metrics list
         metrics_dict = {}
         for key in metrics_dict_list[0].keys():

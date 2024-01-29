@@ -340,6 +340,7 @@ class FullImageDatamanager(DataManager, Generic[TDataset]):
         Pretends to be the dataloader for evaluation, it returns a list of (camera, data) tuples
         """
         image_indices = [i for i in range(len(self.eval_dataset))]
+        print(self.cached_eval)
         data = deepcopy(self.cached_eval)
         _cameras = deepcopy(self.eval_dataset.cameras).to(self.device)
         cameras = []

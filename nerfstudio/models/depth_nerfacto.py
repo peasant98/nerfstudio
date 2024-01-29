@@ -36,7 +36,7 @@ class DepthNerfactoModelConfig(NerfactoModelConfig):
     """Additional parameters for depth supervision."""
 
     _target: Type = field(default_factory=lambda: DepthNerfactoModel)
-    depth_loss_mult: float = 0.1
+    depth_loss_mult: float = 0.0005
     """Lambda of the depth loss."""
     uncertainty_weight: float = 1.0
     """Weight of the uncertainty in the loss if uncertainty weighted loss is used."""
