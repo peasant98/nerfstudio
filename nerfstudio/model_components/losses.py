@@ -325,8 +325,9 @@ def depth_uncertainty_weighted_loss(
     expected_depth_loss = (termination_depth - predicted_depth) ** 2
     expected_depth_loss = expected_depth_loss * depth_mask
     # include uncertainty weighting
+    termination_uncertainty = 5 * termination_uncertainty
     uncertainty_component = torch.exp(-uncertainty_weight * termination_uncertainty)
-    loss = 1 * expected_depth_loss
+    loss = uncertainty_component * expected_depth_loss
     return torch.mean(loss)
 
 

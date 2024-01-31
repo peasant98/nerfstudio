@@ -144,7 +144,7 @@ class DepthDataset(InputDataset):
                 filepath=full_uncertainty_path, height=height, width=width, scale_factor=scale_factor
             )
             
-            uncertainty_image = 80 * uncertainty_image
+            uncertainty_image = uncertainty_image
             
             return {"depth_image": depth_image, "depth_uncertainty": uncertainty_image}
 
