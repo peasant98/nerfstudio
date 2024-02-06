@@ -71,7 +71,7 @@ class DepthNerfactoModel(NerfactoModel):
             self.depth_sigma = torch.tensor([self.config.starting_depth_sigma])
         else:
             self.depth_sigma = torch.tensor([self.config.depth_sigma])
-
+            
     def get_outputs(self, ray_bundle: RayBundle):
         outputs = super().get_outputs(ray_bundle)
         if ray_bundle.metadata is not None and "directions_norm" in ray_bundle.metadata:

@@ -230,9 +230,10 @@ def basic_depth_loss(
 )-> Float[Tensor, "*batch 1"]:
     # depths are only considered valid if they are greater than 0. 0 depth info means no depth info
     depth_mask = termination_depth > 0
-    mse = MSELoss()
-    loss = mse(termination_depth, predicted_depth) * depth_mask
-    return torch.mean(loss)
+    
+    expected_depth_loss = (termination_depth - predicted_depth) ** 2
+    expected_depth_loss = expected_depth_loss * depth_mask
+    return torch.mean(expected_depth_loss)
 
 
 def ds_nerf_depth_loss(
@@ -322,12 +323,24 @@ def depth_uncertainty_weighted_loss(
         
     """
     depth_mask = termination_depth > 0
+    uncertainty_mask = predicted_uncertainty > termination_uncertainty
+    
+    p_condition = torch.abs(termination_depth - predicted_depth) > termination_uncertainty
+    q_condition = predicted_uncertainty > termination_uncertainty
+    
+    should_compute_loss_mask = torch.logical_or(p_condition, q_condition)
+    
+    compute_loss_mask = torch.logical_and(should_compute_loss_mask, depth_mask)
     expected_depth_loss = (termination_depth - predicted_depth) ** 2
-    expected_depth_loss = expected_depth_loss * depth_mask
+    
     # include uncertainty weighting
-    termination_uncertainty = 5 * termination_uncertainty
-    uncertainty_component = torch.exp(-uncertainty_weight * termination_uncertainty)
-    loss = uncertainty_component * expected_depth_loss
+    # log_term = torch.log(predicted_uncertainty**2 + EPS)
+    uncertainty_component = torch.exp(-uncertainty_weight * 0.75  * termination_uncertainty)
+    # loss = expected_depth_loss + log_term
+    expected_depth_loss = expected_depth_loss * uncertainty_component
+    
+    loss = expected_depth_loss * depth_mask
+    
     return torch.mean(loss)
 
 

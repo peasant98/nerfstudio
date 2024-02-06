@@ -380,7 +380,7 @@ class VanillaPipeline(Pipeline):
             num_to_keep = int(len(indices) * percent / 100)
     
             keep_indices =  random.sample(indices, num_to_keep)
-            # keep_indices = [6, 51, 25, 70, 8, 60, 52, 5, 44, 80, 43, 63, 62, 58, 23, 89, 20, 7, 73]
+            # keep_indices = [58, 32, 15, 60, 40, 61, 41, 42, 23, 76, 31, 17, 39, 8, 27, 70, 43, 26, 62, 52]
             task = progress.add_task("[green]Evaluating all eval images...", total=num_to_keep)
             
             idx = 0
