@@ -134,7 +134,7 @@ class DepthGaussianSplattingModel(GaussianSplattingModel):
                 
             average = torch.sum(torch.stack(self.moving_depth_loss_average)) / len(self.moving_depth_loss_average)
             if self.iter % 2 == 0:
-                print(average)
+                # print(average)
                 self.iter = 0
             if len(self.moving_depth_loss_average) > self.max_window_length:
                 self.moving_depth_loss_average.pop(0)
