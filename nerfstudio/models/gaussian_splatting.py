@@ -160,6 +160,8 @@ class GaussianSplattingModelConfig(ModelConfig):
     loss from the PhysGaussian paper
     """
     background_color: Literal["random", "last_sample", "black", "white"] = "last_sample"
+    output_depth_during_training: bool = True
+    """If True, output depth during training. Otherwise, only output depth during evaluation."""
     
 
 
@@ -715,7 +717,7 @@ class GaussianSplattingModel(Model):
         )  # type: ignore
         rgb = torch.clamp(rgb, max=1.0)  # type: ignore
         depth_im = None
-        if not self.training:
+        if self.config.output_depth_during_training or not self.training:
             depth_im = RasterizeGaussians.apply(  # type: ignore
                 self.xys,
                 depths,
