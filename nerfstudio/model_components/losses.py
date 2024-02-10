@@ -232,6 +232,9 @@ def basic_depth_loss(
     depth_mask = termination_depth > 0
     
     expected_depth_loss = (termination_depth - predicted_depth) ** 2
+    
+    # expected_depth_loss = torch.abs(termination_depth - predicted_depth)
+    
     expected_depth_loss = expected_depth_loss * depth_mask
     return torch.mean(expected_depth_loss)
 

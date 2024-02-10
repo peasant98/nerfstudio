@@ -620,6 +620,7 @@ def create_sfm_depth(
         xyz_world = np.array([ptid_to_info[pid].xyz for pid in pids])
         rotation = qvec2rotmat(im_data.qvec)
         z = (rotation @ xyz_world.T)[-1] + im_data.tvec[-1]
+        # errors for each point id.
         errors = np.array([ptid_to_info[pid].error for pid in pids])
         n_visible = np.array([len(ptid_to_info[pid].image_ids) for pid in pids])
         uv = np.array([im_data.xys[i] for i in range(len(im_data.xys)) if im_data.point3D_ids[i] != -1])
@@ -659,23 +660,35 @@ def create_sfm_depth(
         )
         z = z[idx]
         uv = uv[idx]
+        # errors = errors[idx]
+        
 
         uu, vv = uv[:, 0].astype(int), uv[:, 1].astype(int)
         depth = np.zeros((H, W), dtype=np.float32)
         depth[vv, uu] = z
+        # errors_map = np.zeros((H, W), dtype=np.float32)
+        # errors_map[vv, uu] = errors
 
         # E.g. if `depth` is metric and in units of meters, and `depth_scale_to_integer_factor`
         # is 1000, then `depth_img` will be integer millimeters.
         depth_img = (depth_scale_to_integer_factor * depth).astype(np.uint16)
+        
+        # error_img = (depth_scale_to_integer_factor * errors_map).astype(np.uint16)
 
         out_name = str(im_data.name)
         depth_path = output_dir / out_name
+        
+        # error_path = output_dir / f'{out_name}.error.png'
+        
         if depth_path.suffix == ".jpg":
             depth_path = depth_path.with_suffix(".png")
+            # error_path = error_path.with_suffix(".png")
+            
             
         # commented
         cv2.imwrite(str(depth_path), depth_img)  # type: ignore
-
+        # cv2.imwrite(str(error_path), error_img)  # type: ignore
+        
         image_id_to_depth_path[im_id] = depth_path
 
         if include_depth_debug:

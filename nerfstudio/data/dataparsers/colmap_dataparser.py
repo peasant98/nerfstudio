@@ -416,6 +416,9 @@ class ColmapDataParser(DataParser):
         # Load point colours
         points3D_rgb = torch.from_numpy(np.array([p.rgb for p in colmap_points.values()], dtype=np.uint8))
         points3D_num_points = torch.tensor([len(p.image_ids) for p in colmap_points.values()], dtype=torch.int64)
+        
+        #(optional) only load points that have a certain number of 2D matches for the selected images
+        
         out = {
             "points3D_xyz": points3D,
             "points3D_rgb": points3D_rgb,
