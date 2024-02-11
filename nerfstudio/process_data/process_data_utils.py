@@ -294,7 +294,6 @@ def copy_images_list(
     )
 
     num_frames = len(image_paths)
-    print(image_paths)
     # ffmpeg batch commands assume all images are the same dimensions.
     # When this is not the case (e.g. mixed portrait and landscape images), we need to do individually.
     # (Unfortunately, that is much slower.)

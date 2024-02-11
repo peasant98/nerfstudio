@@ -159,13 +159,17 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
         if self.use_sfm_depth:
             depth_dir = self.output_dir / "depth"
             depth_dir.mkdir(parents=True, exist_ok=True)
-            # image_id_to_depth_path = colmap_utils.create_sfm_depth(
-            #     recon_dir=self.output_dir / self.default_colmap_path(),
-            #     output_dir=depth_dir,
-            #     include_depth_debug=self.include_depth_debug,
-            #     input_images_dir=self.image_dir,
-            #     verbose=self.verbose,
-            # )
+            image_id_to_depth_path = None
+            if not self.only_copy_depth:
+            
+                image_id_to_depth_path = colmap_utils.create_sfm_depth(
+                    recon_dir=self.output_dir / self.default_colmap_path(),
+                    output_dir=depth_dir,
+                    include_depth_debug=self.include_depth_debug,
+                    input_images_dir=self.image_dir,
+                    verbose=self.verbose,
+                )
+            
             summary_log.append(
                 process_data_utils.downscale_images(
                     depth_dir,
@@ -188,8 +192,7 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
                         verbose=self.verbose,
                     )
                 )
-            # return image_id_to_depth_path, summary_log
-            return None, summary_log
+            return image_id_to_depth_path, summary_log
 
         return None, summary_log
 
