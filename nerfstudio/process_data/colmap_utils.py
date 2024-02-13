@@ -559,6 +559,7 @@ def create_sfm_depth(
     min_n_visible: int = 2,
     include_depth_debug: bool = False,
     input_images_dir: Optional[Path] = None,
+    base_dir: Optional[Path] = None,
 ) -> Dict[int, Path]:
     """Converts COLMAP's points3d.bin to sparse depth map images encoded as
     16-bit "millimeter depth" PNGs.
@@ -620,8 +621,11 @@ def create_sfm_depth(
         xyz_world = np.array([ptid_to_info[pid].xyz for pid in pids])
         rotation = qvec2rotmat(im_data.qvec)
         z = (rotation @ xyz_world.T)[-1] + im_data.tvec[-1]
+        
         # errors for each point id.
         errors = np.array([ptid_to_info[pid].error for pid in pids])
+        colors = np.array([ptid_to_info[pid].rgb for pid in pids])
+        
         n_visible = np.array([len(ptid_to_info[pid].image_ids) for pid in pids])
         uv = np.array([im_data.xys[i] for i in range(len(im_data.xys)) if im_data.point3D_ids[i] != -1])
         # TODO(1480) END delete when abandoning colmap_parsing_utils
@@ -666,6 +670,21 @@ def create_sfm_depth(
         uu, vv = uv[:, 0].astype(int), uv[:, 1].astype(int)
         depth = np.zeros((H, W), dtype=np.float32)
         depth[vv, uu] = z
+        
+        
+        # sparse colors
+        
+        rgb = colors[idx]
+        
+        valid_xyz = xyz_world[idx]
+        
+        # get rgb of points
+        
+        # rgb[vv, uu] = im_data.colors[idx]
+        
+        # get sparse
+        
+        
         # errors_map = np.zeros((H, W), dtype=np.float32)
         # errors_map[vv, uu] = errors
 
@@ -677,6 +696,17 @@ def create_sfm_depth(
 
         out_name = str(im_data.name)
         depth_path = output_dir / out_name
+        
+        rgb_path = base_dir / 'points_rgb' / f'{out_name}.rgb'
+        xyz_path = base_dir / 'points_xyz' / f'{out_name}.xyz'
+        
+        # create points_rgb and points_xyz
+        rgb_path.parent.mkdir(parents=True, exist_ok=True)
+        xyz_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        np.save(str(xyz_path), valid_xyz)
+        np.save(str(rgb_path), rgb)
+        
         
         # error_path = output_dir / f'{out_name}.error.png'
         

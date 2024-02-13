@@ -90,6 +90,8 @@ class ColmapDataParserConfig(DataParserConfig):
     """Path to the colmap reconstruction directory relative to the data path."""
     load_3D_points: bool = False
     """Whether to load the 3D points from the colmap reconstruction."""
+    load_3d_points_only_from_train: bool = True
+    """Whether to load the 3D points only from the train split."""
     max_2D_matches_per_3D_point: int = 0
     """Maximum number of 2D matches per 3D point. If set to -1, all 2D matches are loaded. If set to 0, no 2D matches are loaded."""
 
@@ -170,7 +172,6 @@ class ColmapDataParser(DataParser):
                 frame["mask_path"] = (
                     (self.config.data / self.config.masks_path / im_data.name).with_suffix(".png").as_posix()
                 )
-            print(self.config.depths_path)
             if self.config.depths_path is not None:
                 frame["depth_path"] = (
                     (self.config.data / self.config.depths_path / im_data.name).with_suffix(".png").as_posix()
@@ -254,7 +255,6 @@ class ColmapDataParser(DataParser):
         poses = []
         idx = 0
         imgs = sorted(os.listdir(self.config.data / self.config.images_path))
-        print(imgs)
         fx = []
         fy = []
         cx = []
@@ -325,7 +325,8 @@ class ColmapDataParser(DataParser):
         image_filenames, mask_filenames, depth_filenames, downscale_factor = self._setup_downscale_factor(
             image_filenames, mask_filenames, depth_filenames
         )
-
+        
+        
         image_filenames = [image_filenames[i] for i in indices]
         mask_filenames = [mask_filenames[i] for i in indices] if len(mask_filenames) > 0 else []
         depth_filenames = [depth_filenames[i] for i in indices] if len(depth_filenames) > 0 else []
@@ -376,7 +377,13 @@ class ColmapDataParser(DataParser):
         metadata = {}
         if self.config.load_3D_points:
             # Load 3D points
-            metadata.update(self._load_3D_points(colmap_path, transform_matrix, scale_factor))
+            
+            if self.config.load_3d_points_only_from_train and split == "train":
+                print('loading 3D points only from train')
+                metadata.update(self._load_3D_points(colmap_path, transform_matrix, scale_factor, indices=indices))
+                
+            else:
+                metadata.update(self._load_3D_points(colmap_path, transform_matrix, scale_factor))
 
         dataparser_outputs = DataparserOutputs(
             image_filenames=image_filenames,
@@ -393,7 +400,62 @@ class ColmapDataParser(DataParser):
         )
         return dataparser_outputs
 
-    def _load_3D_points(self, colmap_path: Path, transform_matrix: torch.Tensor, scale_factor: float):
+    def _load_3D_points(self, colmap_path: Path, transform_matrix: torch.Tensor, scale_factor: float, indices: List[int] = None):
+        
+        if indices is not None:
+            # load 3D points only from the train split
+            points_rgb_path = "points_rgb"
+            points_xyz_path = "points_xyz"
+            
+            colmap_path_str = str(colmap_path)
+            
+            root_path = colmap_path_str.split('/')[0]
+            
+            main_point_rgb_path = f'{root_path}/{points_rgb_path}'
+            main_point_xyz_path = f'{root_path}/{points_xyz_path}'
+            
+            
+            points_rgb_paths = sorted(os.listdir(f'{root_path}/{points_rgb_path}'))
+            points_xyz_paths = sorted(os.listdir(f'{root_path}/{points_xyz_path}'))
+            
+            limited_points_xyz = None
+            limited_points_rgb = None
+            
+            for index in indices:
+                print(index)
+                points_rgb_path = points_rgb_paths[index]
+                points_xyz_path = points_xyz_paths[index]
+                
+                # open file
+                point_rgb_path = f'{main_point_rgb_path}/{points_rgb_path}'
+                point_xyz_path = f'{main_point_xyz_path}/{points_xyz_path}'
+                
+                point_rgb = np.load(point_rgb_path)
+                point_xyz = np.load(point_xyz_path)
+                
+                if limited_points_xyz is None:
+                    limited_points_xyz = point_xyz
+                    limited_points_rgb = point_rgb
+                else:
+                    limited_points_xyz = np.concatenate((limited_points_xyz, point_xyz))
+                    limited_points_rgb = np.concatenate((limited_points_rgb, point_rgb))
+                
+        
+            limited_points_xyz = torch.from_numpy(np.array(limited_points_xyz, dtype=np.float32))
+            limited_points_rgb = torch.from_numpy(np.array(limited_points_rgb, dtype=np.uint8))
+            
+            limited_points_xyz = (
+                torch.cat(
+                    (
+                        limited_points_xyz,
+                        torch.ones_like(limited_points_xyz[..., :1]),
+                    ),
+                    -1,
+                )
+                    @ transform_matrix.T
+            )
+            limited_points_xyz *= scale_factor
+        
         if (colmap_path / "points3D.bin").exists():
             colmap_points = colmap_utils.read_points3D_binary(colmap_path / "points3D.bin")
         elif (colmap_path / "points3D.txt").exists():
@@ -401,6 +463,7 @@ class ColmapDataParser(DataParser):
         else:
             raise ValueError(f"Could not find points3D.txt or points3D.bin in {colmap_path}")
         points3D = torch.from_numpy(np.array([p.xyz for p in colmap_points.values()], dtype=np.float32))
+        
         points3D = (
             torch.cat(
                 (
@@ -415,8 +478,8 @@ class ColmapDataParser(DataParser):
 
         # Load point colours
         points3D_rgb = torch.from_numpy(np.array([p.rgb for p in colmap_points.values()], dtype=np.uint8))
-        points3D_num_points = torch.tensor([len(p.image_ids) for p in colmap_points.values()], dtype=torch.int64)
         
+        points3D_num_points = torch.tensor([len(p.image_ids) for p in colmap_points.values()], dtype=torch.int64)
         #(optional) only load points that have a certain number of 2D matches for the selected images
         
         out = {
@@ -425,6 +488,11 @@ class ColmapDataParser(DataParser):
             "points3D_error": torch.from_numpy(np.array([p.error for p in colmap_points.values()], dtype=np.float32)),
             "points3D_num_points2D": points3D_num_points,
         }
+        
+        if indices is not None:
+            out["points3D_xyz"] = limited_points_xyz
+            out["points3D_rgb"] = limited_points_rgb
+        
         if self.config.max_2D_matches_per_3D_point != 0:
             if (colmap_path / "images.txt").exists():
                 im_id_to_image = colmap_utils.read_images_text(colmap_path / "images.txt")

@@ -97,7 +97,7 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
     """If True, use GPU."""
     use_sfm_depth: bool = True
     """If True, export and use depth maps induced from SfM points."""
-    only_copy_depth: bool = False
+    only_copy_depth: bool = True
     """If True, only copy the depth images and do not run the create_sfm_depth function."""
     include_depth_debug: bool = False
     """If --use-sfm-depth and this flag is True, also export debug images showing Sf overlaid upon input images."""
@@ -168,6 +168,7 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
                     include_depth_debug=self.include_depth_debug,
                     input_images_dir=self.image_dir,
                     verbose=self.verbose,
+                    base_dir=self.output_dir,
                 )
             
             summary_log.append(
