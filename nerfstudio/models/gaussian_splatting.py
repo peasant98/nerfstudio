@@ -143,7 +143,7 @@ class GaussianSplattingModelConfig(ModelConfig):
     """if a gaussian is more than this percent of screen space, split it"""
     stop_screen_size_at: int = 4000
     """stop culling/splitting at this step WRT screen size of gaussians"""
-    random_init: bool = False
+    random_init: bool = True
     """whether to initialize the positions uniformly randomly (not SFM points)"""
     ssim_lambda: float = 0.2
     """weight of ssim loss"""
@@ -241,6 +241,18 @@ class GaussianSplattingModel(Model):
     @property
     def shs_rest(self):
         return self.features_rest
+    
+    def composite_with_background(self, image, background) -> torch.Tensor:
+        """Composite the ground truth image with a background color when it has an alpha channel.
+        Args:
+            image: the image to composite
+            background: the background color
+        """
+        if image.shape[2] == 4:
+            alpha = image[..., -1].unsqueeze(-1).repeat((1, 1, 3))
+            return alpha * image[..., :3] + (1 - alpha) * background
+        else:
+            return image
 
     def load_state_dict(self, dict, **kwargs):  # type: ignore
         # resize the parameters to match the new number of points
@@ -681,7 +693,7 @@ class GaussianSplattingModel(Model):
             tile_bounds,
         )  # type: ignore
         if (self.radii).sum() == 0:
-            return {"rgb": background.repeat(int(camera.height.item()), int(camera.width.item()), 1)}
+            return {"rgb": background.repeat(int(camera.height.item()), int(camera.width.item()), 1), "background": background}
 
         # Important to allow xys grads to populate properly
         if self.training:
@@ -732,7 +744,7 @@ class GaussianSplattingModel(Model):
             )[
                 ..., 0:1
             ]  # type: ignore
-        return {"rgb": rgb, "depth": depth_im}  # type: ignore
+        return {"rgb": rgb, "depth": depth_im, "background": background}  # type: ignore
 
     def get_metrics_dict(self, outputs, batch) -> Dict[str, torch.Tensor]:
         """Compute and returns metrics.
@@ -749,6 +761,9 @@ class GaussianSplattingModel(Model):
             gt_img = batch["image"]
         metrics_dict = {}
         gt_rgb = gt_img.to(self.device)  # RGB or RGBA image
+        
+        # gt_rgb = self.composite_with_background(gt_rgb, outputs["background"])
+        
         gt_rgb = self.renderer_rgb.blend_background(gt_rgb)
         predicted_rgb = outputs["rgb"]
         metrics_dict["psnr"] = self.psnr(predicted_rgb, gt_rgb)
@@ -771,6 +786,8 @@ class GaussianSplattingModel(Model):
             gt_img = TF.resize(batch["image"].permute(2, 0, 1), newsize, antialias=None).permute(1, 2, 0)
         else:
             gt_img = batch["image"]
+            
+        # gt_rgb = self.composite_with_background(gt_rgb, outputs["background"])
         gt_img = self.renderer_rgb.blend_background(gt_img)
         
         Ll1 = torch.abs(gt_img - outputs["rgb"]).mean()
@@ -829,6 +846,10 @@ class GaussianSplattingModel(Model):
             predicted_rgb = outputs["rgb"]
 
         gt_rgb = gt_img.to(self.device)
+        
+        print(gt_rgb.shape, predicted_rgb.shape)
+        
+        gt_rgb = gt_rgb[:, :, :3]
 
         combined_rgb = torch.cat([gt_rgb, predicted_rgb], dim=1)
 
