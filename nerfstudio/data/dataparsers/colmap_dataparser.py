@@ -90,8 +90,10 @@ class ColmapDataParserConfig(DataParserConfig):
     """Path to the colmap reconstruction directory relative to the data path."""
     load_3D_points: bool = False
     """Whether to load the 3D points from the colmap reconstruction."""
-    load_3d_points_only_from_train: bool = True
+    load_3d_points_only_from_train: bool = False
     """Whether to load the 3D points only from the train split."""
+    load_touch_3d_points_if_exists: bool = True
+    """Whether to load the 3D points from the touch dataset if they exist."""
     max_2D_matches_per_3D_point: int = 0
     """Maximum number of 2D matches per 3D point. If set to -1, all 2D matches are loaded. If set to 0, no 2D matches are loaded."""
 
@@ -375,13 +377,26 @@ class ColmapDataParser(DataParser):
             scale_factor *= applied_scale
 
         metadata = {}
+        if split != "train":
+            print(indices, "Cope King")
+            # save indices for the eval split to root path
+            # save depth filenames for the eval split to root path
+            
+            depth_filenames_list_name = self.config.data / f'{split}_depth_filenames.txt'
+            
+            with open(depth_filenames_list_name, 'w') as file:
+                depths = [str(depth) for depth in depth_filenames]
+                # Join the list into a single string with each element separated by a newline, then write to the file
+                file.write('\n'.join(depths))
         if self.config.load_3D_points:
             # Load 3D points
             
             if self.config.load_3d_points_only_from_train and split == "train":
                 print('loading 3D points only from train')
                 metadata.update(self._load_3D_points(colmap_path, transform_matrix, scale_factor, indices=indices))
-                
+            elif self.config.load_touch_3d_points_if_exists and split == "train":
+                print('loading touch 3D points if exists')
+                metadata.update(self._load_3D_points(colmap_path, transform_matrix, scale_factor, indices=indices, load_touch_points_if_exists=True))
             else:
                 metadata.update(self._load_3D_points(colmap_path, transform_matrix, scale_factor))
 
@@ -400,47 +415,75 @@ class ColmapDataParser(DataParser):
         )
         return dataparser_outputs
 
-    def _load_3D_points(self, colmap_path: Path, transform_matrix: torch.Tensor, scale_factor: float, indices: List[int] = None):
+    def _load_3D_points(self, colmap_path: Path, transform_matrix: torch.Tensor, scale_factor: float, indices: List[int] = None, load_touch_points_if_exists: bool = False):
+        print('Calling function')
+        limited_points_xyz = None
+        limited_points_rgb = None
         
         if indices is not None:
-            # load 3D points only from the train split
-            points_rgb_path = "points_rgb"
-            points_xyz_path = "points_xyz"
-            
-            colmap_path_str = str(colmap_path)
-            
-            root_path = colmap_path_str.split('/')[0]
-            
-            main_point_rgb_path = f'{root_path}/{points_rgb_path}'
-            main_point_xyz_path = f'{root_path}/{points_xyz_path}'
-            
-            
-            points_rgb_paths = sorted(os.listdir(f'{root_path}/{points_rgb_path}'))
-            points_xyz_paths = sorted(os.listdir(f'{root_path}/{points_xyz_path}'))
-            
-            limited_points_xyz = None
-            limited_points_rgb = None
-            
-            for index in indices:
-                print(index)
-                points_rgb_path = points_rgb_paths[index]
-                points_xyz_path = points_xyz_paths[index]
+            if load_touch_points_if_exists:
+                colmap_path_str = str(colmap_path)
                 
-                # open file
-                point_rgb_path = f'{main_point_rgb_path}/{points_rgb_path}'
-                point_xyz_path = f'{main_point_xyz_path}/{points_xyz_path}'
+                root_path = colmap_path_str.split('/')[0]
                 
-                point_rgb = np.load(point_rgb_path)
-                point_xyz = np.load(point_xyz_path)
+                main_point_rgb_path = f'{root_path}/colors_bunny.npy'
+                main_point_xyz_path = f'{root_path}/points_bunny.npy'
                 
-                if limited_points_xyz is None:
-                    limited_points_xyz = point_xyz
-                    limited_points_rgb = point_rgb
-                else:
-                    limited_points_xyz = np.concatenate((limited_points_xyz, point_xyz))
-                    limited_points_rgb = np.concatenate((limited_points_rgb, point_rgb))
+                limited_points_xyz = np.load(main_point_xyz_path)
+                limited_points_rgb = np.load(main_point_rgb_path)
                 
-        
+                pts_num = 500000
+                random_pts = (np.random.randn(pts_num, 3) - 0.5) * 10
+                
+                random_colors = np.random.randn(pts_num, 3) * 255.0
+                
+                limited_points_xyz = np.concatenate((limited_points_xyz, random_pts))
+                
+                limited_points_rgb = np.concatenate((limited_points_rgb, random_colors))
+                
+                print('shape of limited_points_xyz', limited_points_xyz.shape)
+                print('shape of limited_points_rgb', limited_points_rgb.shape)
+                
+            else:
+                # load 3D points only from the train split
+                points_rgb_path = "points_rgb"
+                points_xyz_path = "points_xyz"
+                
+                colmap_path_str = str(colmap_path)
+                
+                root_path = colmap_path_str.split('/')[0]
+                
+                main_point_rgb_path = f'{root_path}/{points_rgb_path}'
+                main_point_xyz_path = f'{root_path}/{points_xyz_path}'
+                
+                
+                points_rgb_paths = sorted(os.listdir(f'{root_path}/{points_rgb_path}'))
+                points_xyz_paths = sorted(os.listdir(f'{root_path}/{points_xyz_path}'))
+                
+                limited_points_xyz = None
+                limited_points_rgb = None
+            
+                for index in indices:
+                    print(index)
+                    points_rgb_path = points_rgb_paths[index]
+                    points_xyz_path = points_xyz_paths[index]
+                    
+                    # open file
+                    point_rgb_path = f'{main_point_rgb_path}/{points_rgb_path}'
+                    point_xyz_path = f'{main_point_xyz_path}/{points_xyz_path}'
+                    
+                    point_rgb = np.load(point_rgb_path)
+                    
+                    point_xyz = np.load(point_xyz_path)
+                    print(len(point_xyz))
+                    
+                    if limited_points_xyz is None:
+                        limited_points_xyz = point_xyz
+                        limited_points_rgb = point_rgb
+                    else:
+                        limited_points_xyz = np.concatenate((limited_points_xyz, point_xyz))
+                        limited_points_rgb = np.concatenate((limited_points_rgb, point_rgb))
+                
             limited_points_xyz = torch.from_numpy(np.array(limited_points_xyz, dtype=np.float32))
             limited_points_rgb = torch.from_numpy(np.array(limited_points_rgb, dtype=np.uint8))
             
@@ -490,6 +533,7 @@ class ColmapDataParser(DataParser):
         }
         
         if indices is not None:
+            print('length of limited_points_xyz', len(limited_points_xyz))
             out["points3D_xyz"] = limited_points_xyz
             out["points3D_rgb"] = limited_points_rgb
         

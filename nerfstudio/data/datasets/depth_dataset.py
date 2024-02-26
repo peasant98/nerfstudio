@@ -141,7 +141,7 @@ class DepthDataset(InputDataset):
         else:
             # get uncertainty image if it exists (worry about loss function later)
             uncertainty_image = get_depth_or_uncertainty_image_from_path(
-                filepath=full_uncertainty_path, height=height, width=width, scale_factor=scale_factor
+                filepath=full_uncertainty_path, height=height, width=width, scale_factor=self.depth_unit_scale_factor
             )
             
             uncertainty_image = uncertainty_image

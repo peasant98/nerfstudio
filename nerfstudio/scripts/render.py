@@ -61,6 +61,7 @@ from nerfstudio.data.datamanagers.base_datamanager import (
     VanillaDataManager,
     VanillaDataManagerConfig,
 )
+from nerfstudio.data.datamanagers.full_images_datamanager import FullImageDatamanagerConfig
 from nerfstudio.data.datamanagers.parallel_datamanager import ParallelDataManager
 from nerfstudio.data.datamanagers.random_cameras_datamanager import (
     RandomCamerasDataManager,
@@ -229,7 +230,7 @@ def _render_trajectory_video(
                         output_image = (
                             colormaps.apply_depth_colormap(
                                 output_image,
-                                accumulation=outputs["accumulation"],
+                                accumulation=None,
                                 near_plane=depth_near_plane,
                                 far_plane=depth_far_plane,
                                 colormap_options=colormap_options,
@@ -736,11 +737,12 @@ class DatasetRender(BaseRender):
 
         def update_config(config: TrainerConfig) -> TrainerConfig:
             data_manager_config = config.pipeline.datamanager
-            assert isinstance(data_manager_config, VanillaDataManagerConfig)
+            assert isinstance(data_manager_config, (VanillaDataManagerConfig, FullImageDatamanagerConfig))
             data_manager_config.eval_num_images_to_sample_from = -1
             data_manager_config.eval_num_times_to_repeat_images = -1
-            data_manager_config.train_num_images_to_sample_from = -1
-            data_manager_config.train_num_times_to_repeat_images = -1
+            if isinstance(data_manager_config, VanillaDataManagerConfig):
+                data_manager_config.train_num_images_to_sample_from = -1
+                data_manager_config.train_num_times_to_repeat_images = -1
             if self.data is not None:
                 data_manager_config.data = self.data
             if self.downscale_factor is not None:
@@ -755,7 +757,7 @@ class DatasetRender(BaseRender):
             update_config_callback=update_config,
         )
         data_manager_config = config.pipeline.datamanager
-        assert isinstance(data_manager_config, VanillaDataManagerConfig)
+        assert isinstance(data_manager_config, (VanillaDataManagerConfig, FullImageDatamanagerConfig))
 
         for split in self.split.split("+"):
             datamanager: VanillaDataManager
@@ -803,10 +805,13 @@ class DatasetRender(BaseRender):
                         + [f"gt-{x}" for x in gt_batch.keys()]
                         + [f"raw-gt-{x}" for x in gt_batch.keys()]
                     )
+                    
                     rendered_output_names = self.rendered_output_names
                     if rendered_output_names is None:
                         rendered_output_names = ["gt-rgb"] + list(outputs.keys())
                     for rendered_output_name in rendered_output_names:
+                        if rendered_output_name == 'background':
+                            continue
                         if rendered_output_name not in all_outputs:
                             CONSOLE.rule("Error", style="red")
                             CONSOLE.print(
@@ -828,6 +833,7 @@ class DatasetRender(BaseRender):
 
                         output_path = self.output_path / split / rendered_output_name / image_name
                         output_path.parent.mkdir(exist_ok=True, parents=True)
+                        
 
                         output_name = rendered_output_name
                         if output_name.startswith("raw-"):
@@ -856,7 +862,7 @@ class DatasetRender(BaseRender):
                             output_image = (
                                 colormaps.apply_depth_colormap(
                                     output_image,
-                                    accumulation=outputs["accumulation"],
+                                    accumulation=None,
                                     near_plane=self.depth_near_plane,
                                     far_plane=self.depth_far_plane,
                                     colormap_options=self.colormap_options,

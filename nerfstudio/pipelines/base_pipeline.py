@@ -23,9 +23,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from time import time
 from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Type, Union, cast
+from matplotlib import pyplot as plt
+import numpy as np
 
 import random
 
+import cv2
 import torch
 import torch.distributed as dist
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
@@ -315,6 +318,32 @@ class VanillaPipeline(Pipeline):
         This is an nn.Module, and so requires a forward() method normally, although in our case
         we do not need a forward() method"""
         raise NotImplementedError
+    
+    def get_ground_truth_scene_and_object_and_supervised(self, depth_filename):
+        
+        gt_depth_filename = depth_filename.replace("depths_2", "gt_depths")
+        
+        gt_object_depth_filename = depth_filename.replace("depths_2", "gpis_depth")
+        
+        gt_depth = cv2.imread(gt_depth_filename, cv2.IMREAD_ANYDEPTH) / 1000
+        
+        depth = cv2.imread(depth_filename, cv2.IMREAD_ANYDEPTH) / 1000
+        
+        
+        object_depth = cv2.imread(gt_object_depth_filename, cv2.IMREAD_ANYDEPTH) / 1000
+        
+        gt_depth = cv2.resize(gt_depth, (900, 900), interpolation=cv2.INTER_AREA)
+        
+        object_depth = cv2.resize(object_depth, (900, 900), interpolation=cv2.INTER_AREA)
+        
+        # use the object depth as a mask to get the gt object depth
+        gt_object_depth = np.where(object_depth > 0, gt_depth, 0)
+        
+        print(gt_object_depth.shape)
+        print(gt_depth.shape)
+        
+        return gt_depth, gt_object_depth, depth
+        
 
     @profiler.time_function
     def get_eval_loss_dict(self, step: int) -> Tuple[Any, Dict[str, Any], Dict[str, Any]]:
@@ -383,30 +412,55 @@ class VanillaPipeline(Pipeline):
             # keep_indices = [58, 32, 15, 60, 40, 61, 41, 42, 23, 76, 31, 17, 39, 8, 27, 70, 43, 26, 62, 52]
             task = progress.add_task("[green]Evaluating all eval images...", total=num_to_keep)
             
+            datapath = self.datamanager.get_datapath()
+            
+            fname = datapath / f'val_depth_filenames.txt'
+            
+            with open(fname, 'r') as file:
+                depth_filenames = [line.strip() for line in file]
+
+            
             idx = 0
             for camera, batch in self.datamanager.fixed_indices_eval_dataloader:
-                if idx in keep_indices:
-                    # time this the following line
-                    inner_start = time()
-                    outputs = self.model.get_outputs_for_camera(camera=camera)
-                    height, width = camera.height, camera.width
-                    num_rays = height * width
-                    metrics_dict, _ = self.model.get_image_metrics_and_images(outputs, batch)
-                    if output_path is not None:
-                        raise NotImplementedError("Saving images is not implemented yet")
+                
+                # gt_scene = get_gt(real_idx)
+                depth_filename = depth_filenames[idx]
+                gt_depth, gt_object_depth, supervised_depth = self.get_ground_truth_scene_and_object_and_supervised(depth_filename)
+                
+                # convert gt_depth and gt_object_depth to torch tensors
+                gt_depth = torch.tensor(gt_depth).unsqueeze(-1)
+                gt_object_depth = torch.tensor(gt_object_depth).unsqueeze(-1)
+                supervised_depth = torch.tensor(supervised_depth).unsqueeze(-1)
+                
+                batch["gt_depth_image"] = gt_depth  
+                batch["gt_object_depth_image"] = gt_object_depth
+                batch["supervised_depth_image"] = supervised_depth
+                
+                # time this the following line
+                inner_start = time()
+                outputs = self.model.get_outputs_for_camera(camera=camera)
+                height, width = camera.height, camera.width
+                num_rays = height * width
+                metrics_dict, _ = self.model.get_image_metrics_and_images(outputs, batch)
+                if output_path is not None:
+                    raise NotImplementedError("Saving images is not implemented yet")
 
-                    assert "num_rays_per_sec" not in metrics_dict
-                    metrics_dict["num_rays_per_sec"] = (num_rays / (time() - inner_start)).item()
-                    fps_str = "fps"
-                    assert fps_str not in metrics_dict
-                    metrics_dict[fps_str] = (metrics_dict["num_rays_per_sec"] / (height * width)).item()
-                    metrics_dict_list.append(metrics_dict)
-                    progress.advance(task)
+                assert "num_rays_per_sec" not in metrics_dict
+                metrics_dict["num_rays_per_sec"] = (num_rays / (time() - inner_start)).item()
+                fps_str = "fps"
+                assert fps_str not in metrics_dict
+                metrics_dict[fps_str] = (metrics_dict["num_rays_per_sec"] / (height * width)).item()
+                metrics_dict_list.append(metrics_dict)
+                progress.advance(task)
+                
                 idx+=1
         # average the metrics list
         metrics_dict = {}
         for key in metrics_dict_list[0].keys():
             if get_std:
+                print(key)
+                x = torch.tensor([metrics_dict[key] for metrics_dict in metrics_dict_list])
+                print(x)
                 key_std, key_mean = torch.std_mean(
                     torch.tensor([metrics_dict[key] for metrics_dict in metrics_dict_list])
                 )

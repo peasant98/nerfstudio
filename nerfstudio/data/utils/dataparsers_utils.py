@@ -35,8 +35,10 @@ def get_train_eval_split_fraction(image_filenames: List, train_split_fraction: f
     num_eval_images = num_images - num_train_images
     i_all = np.arange(num_images)
     i_train = np.linspace(
-        0, num_images - 1, num_train_images, dtype=int
+        0, num_images - 1, num_train_images+1, dtype=int
     )  # equally spaced training images starting and ending at 0 and num_images-1
+    # remove last value from i_train
+    i_train = i_train[:-1]
     i_eval = np.setdiff1d(i_all, i_train)  # eval images are the remaining images
     assert len(i_eval) == num_eval_images
 

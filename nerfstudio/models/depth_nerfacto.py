@@ -139,23 +139,47 @@ class DepthNerfactoModel(NerfactoModel):
         self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]
     ) -> Tuple[Dict[str, float], Dict[str, torch.Tensor]]:
         """Appends ground truth depth to the depth image."""
+        scale = 0.25623789273
         metrics, images = super().get_image_metrics_and_images(outputs, batch)
-        ground_truth_depth = batch["depth_image"].to(self.device)
-        if not self.config.is_euclidean_depth:
-            ground_truth_depth = ground_truth_depth * outputs["directions_norm"]
-
-        ground_truth_depth_colormap = colormaps.apply_depth_colormap(ground_truth_depth)
+        
+        supervised_depth = batch["depth_image"].to(self.device) / scale
+        
+        outputs["depth"] = outputs["depth"] / scale
+        
+        ground_truth_depth_colormap = colormaps.apply_depth_colormap(supervised_depth)
         predicted_depth_colormap = colormaps.apply_depth_colormap(
             outputs["depth"],
             accumulation=outputs["accumulation"],
-            near_plane=float(torch.min(ground_truth_depth).cpu()),
-            far_plane=float(torch.max(ground_truth_depth).cpu()),
+            near_plane=float(torch.min(supervised_depth).cpu()),
+            far_plane=float(torch.max(supervised_depth).cpu()),
         )
         images["depth"] = torch.cat([ground_truth_depth_colormap, predicted_depth_colormap], dim=1)
-        depth_mask = ground_truth_depth > 0
-        metrics["depth_mse"] = float(
-            torch.nn.functional.mse_loss(outputs["depth"][depth_mask], ground_truth_depth[depth_mask]).cpu()
-        )
+        
+        if supervised_depth.shape[1] == 899:
+            supervised_depth = supervised_depth[:548, :898, :]
+        
+        supervised_depth_mask = supervised_depth > 0
+        metrics["supervised_depth_mse"] = float(
+            torch.nn.functional.mse_loss(outputs["depth"][supervised_depth_mask], supervised_depth[supervised_depth_mask]).cpu()
+        ) / 7.27
+        
+        if "gt_object_depth_image" in batch and "gt_depth_image" in batch:
+        
+            gt_depth = batch["gt_depth_image"].to(self.device)
+            
+            gt_object_depth = batch["gt_object_depth_image"].to(self.device)
+            
+            print(gt_depth.shape, gt_object_depth.shape)
+            
+            depth_mask = gt_depth > 0
+            metrics["gt_depth_mse"] = float(
+                torch.nn.functional.mse_loss(outputs["depth"][depth_mask], gt_depth[depth_mask]).cpu()
+            ) / 7.27
+            
+            object_depth_mask = gt_object_depth > 0
+            metrics["gt_object_depth_mse"] = float(
+                torch.nn.functional.mse_loss(outputs["depth"][object_depth_mask], gt_object_depth[object_depth_mask]).cpu()
+            ) / 7.27
         return metrics, images
 
     def _get_sigma(self):
