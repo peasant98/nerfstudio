@@ -133,9 +133,18 @@ class DepthDataset(InputDataset):
         full_path = os.path.join(*path_segments)
         full_uncertainty_path = Path('/' + full_path)
         
+        full_uncertainty_path_str = ""
+        
+        if 'fused' in str(full_uncertainty_path):
+            full_uncertainty_path_str = str(full_uncertainty_path)
+            full_uncertainty_path_str = full_uncertainty_path_str.replace('fused', 'fused_uncertainty')
+        
+            full_uncertainty_path = Path(full_uncertainty_path_str)
+      
         use_depth_uncertainty = False
-        if os.path.exists(full_uncertainty_path) and 'uncertainties' in str(full_uncertainty_path):
+        if (os.path.exists(full_uncertainty_path) and 'uncertainties' in str(full_uncertainty_path)) or (os.path.exists(full_uncertainty_path) and 'fused_uncertainty' in str(full_uncertainty_path)):
             use_depth_uncertainty = True
+            
         if not use_depth_uncertainty:
             return {"depth_image": depth_image}
         else:
@@ -145,7 +154,6 @@ class DepthDataset(InputDataset):
             )
             
             uncertainty_image = uncertainty_image
-            
             return {"depth_image": depth_image, "depth_uncertainty": uncertainty_image}
 
     def _find_transform(self, image_path: Path) -> Union[Path, None]:

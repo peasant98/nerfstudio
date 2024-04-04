@@ -55,7 +55,7 @@ class DepthGaussianSplattingModelConfig(GaussianSplattingModelConfig):
     """Starting uncertainty around depth values in meters (defaults to 0.2m)."""
     sigma_decay_rate: float = 0.99985
     """Rate of exponential decay."""
-    depth_loss_type: DepthLossType = DepthLossType.DEPTH_UNCERTAINTY_WEIGHTED_LOSS
+    depth_loss_type: DepthLossType = DepthLossType.SIMPLE_LOSS
     """Depth loss type."""
     
 class DepthGaussianSplattingModel(GaussianSplattingModel):
@@ -151,8 +151,8 @@ class DepthGaussianSplattingModel(GaussianSplattingModel):
             
             if "depth_loss" in metrics_dict:
                 loss_dict["depth_loss"] = self.config.depth_loss_mult * metrics_dict["depth_loss"]
-        if self.config.depth_loss_mult >= 0.01:
-            self.config.depth_loss_mult = max(0.01, self.config.depth_loss_mult * 0.9995)
+        if self.config.depth_loss_mult >= 0.005:
+            self.config.depth_loss_mult = max(0.005, self.config.depth_loss_mult * 0.9995)
         return loss_dict
     
     
@@ -161,48 +161,65 @@ class DepthGaussianSplattingModel(GaussianSplattingModel):
     ) -> Tuple[Dict[str, float], Dict[str, torch.Tensor]]:
         """Appends ground truth depth to the depth image."""
         
-        scale = 0.25623789273
-        metrics, images = super().get_image_metrics_and_images(outputs, batch)
+        is_real_world = batch["is_real_world"]
         
-        supervised_depth = batch["depth_image"].to(self.device) / scale
+        if not is_real_world:
         
-        outputs["depth"] = outputs["depth"] / scale
-        
-        # ground_truth_depth_colormap = colormaps.apply_depth_colormap(supervised_depth)
-        # predicted_depth_colormap = colormaps.apply_depth_colormap(
-        #     outputs["depth"],
-        #     accumulation=outputs["accumulation"],
-        #     near_plane=float(torch.min(ground_truth_depth).cpu()),
-        #     far_plane=float(torch.max(ground_truth_depth).cpu()),
-        # )
-        # images["depth"] = torch.cat([ground_truth_depth_colormap, predicted_depth_colormap], dim=1)
-        
-        if supervised_depth.shape[1] == 899:
-            supervised_depth = supervised_depth[:548, :898, :]
-        
-        print(supervised_depth.shape, outputs["depth"].shape, 'supervised_depth')
-        
-        supervised_depth_mask = supervised_depth > 0
-        metrics["supervised_depth_mse"] = float(
-            torch.nn.functional.mse_loss(outputs["depth"][supervised_depth_mask], supervised_depth[supervised_depth_mask]).cpu()
-        ) / 7.27
-        
-        if "gt_object_depth_image" in batch and "gt_depth_image" in batch:
-        
-            gt_depth = batch["gt_depth_image"].to(self.device)
+            scale = 0.25623789273
+            metrics, images = super().get_image_metrics_and_images(outputs, batch)
             
-            gt_object_depth = batch["gt_object_depth_image"].to(self.device)
+            supervised_depth = batch["depth_image"].to(self.device) / scale
             
-            print(gt_depth.shape, gt_object_depth.shape)
+            outputs["depth"] = outputs["depth"] / scale
             
-            depth_mask = gt_depth > 0
-            metrics["gt_depth_mse"] = float(
-                torch.nn.functional.mse_loss(outputs["depth"][depth_mask], gt_depth[depth_mask]).cpu()
+            
+            
+            # ground_truth_depth_colormap = colormaps.apply_depth_colormap(supervised_depth)
+            # predicted_depth_colormap = colormaps.apply_depth_colormap(
+            #     outputs["depth"],
+            #     accumulation=outputs["accumulation"],
+            #     near_plane=float(torch.min(ground_truth_depth).cpu()),
+            #     far_plane=float(torch.max(ground_truth_depth).cpu()),
+            # )
+            # images["depth"] = torch.cat([ground_truth_depth_colormap, predicted_depth_colormap], dim=1)
+            
+            if supervised_depth.shape[1] == 899:
+                supervised_depth = supervised_depth[:548, :898, :]
+            
+            print(supervised_depth.shape, outputs["depth"].shape, 'supervised_depth')
+            
+            supervised_depth_mask = supervised_depth > 0
+            metrics["supervised_depth_mse"] = float(
+                torch.nn.functional.mse_loss(outputs["depth"][supervised_depth_mask], supervised_depth[supervised_depth_mask]).cpu()
             ) / 7.27
             
-            object_depth_mask = gt_object_depth > 0
-            metrics["gt_object_depth_mse"] = float(
-                torch.nn.functional.mse_loss(outputs["depth"][object_depth_mask], gt_object_depth[object_depth_mask]).cpu()
-            ) / 7.27
-        
+            if "gt_object_depth_image" in batch and "gt_depth_image" in batch:
+            
+                gt_depth = batch["gt_depth_image"].to(self.device)
+                
+                gt_object_depth = batch["gt_object_depth_image"].to(self.device)
+                
+                print(gt_depth.shape, gt_object_depth.shape)
+                
+                depth_mask = gt_depth > 0
+                metrics["gt_depth_mse"] = float(
+                    torch.nn.functional.mse_loss(outputs["depth"][depth_mask], gt_depth[depth_mask]).cpu()
+                ) / 7.27
+                
+                object_depth_mask = gt_object_depth > 0
+                metrics["gt_object_depth_mse"] = float(
+                    torch.nn.functional.mse_loss(outputs["depth"][object_depth_mask], gt_object_depth[object_depth_mask]).cpu()
+                ) / 7.27
+        else:
+            metrics, images = super().get_image_metrics_and_images(outputs, batch)
+            
+            supervised_depth = batch["depth_image"].to(self.device)
+            
+            outputs["depth"] = outputs["depth"]
+            
+            supervised_depth_mask = supervised_depth > 0
+            metrics["supervised_depth_mse"] = float(
+                torch.nn.functional.mse_loss(outputs["depth"][supervised_depth_mask], supervised_depth[supervised_depth_mask]).cpu()
+            )
+            
         return metrics, images

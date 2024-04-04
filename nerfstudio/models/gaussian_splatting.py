@@ -143,7 +143,7 @@ class GaussianSplattingModelConfig(ModelConfig):
     """if a gaussian is more than this percent of screen space, split it"""
     stop_screen_size_at: int = 4000
     """stop culling/splitting at this step WRT screen size of gaussians"""
-    random_init: bool = True
+    random_init: bool = False
     """whether to initialize the positions uniformly randomly (not SFM points)"""
     ssim_lambda: float = 0.2
     """weight of ssim loss"""
@@ -162,6 +162,8 @@ class GaussianSplattingModelConfig(ModelConfig):
     background_color: Literal["random", "last_sample", "black", "white"] = "last_sample"
     output_depth_during_training: bool = True
     """If True, output depth during training. Otherwise, only output depth during evaluation."""
+    init_touch_and_random_points: bool = False
+    """If True, initialize the gaussians with touch points and random points. Otherwise, initialize with random points only."""
     
 
 
@@ -179,13 +181,21 @@ class GaussianSplattingModel(Model):
             self.seed_pts = kwargs["seed_points"]
         else:
             self.seed_pts = None
+        print("Seed points", self.seed_pts)
         super().__init__(*args, **kwargs)
 
     def populate_modules(self):
         if self.seed_pts is not None and not self.config.random_init:
             self.means = torch.nn.Parameter(self.seed_pts[0])  # (Location, Color)
+        elif self.config.init_touch_and_random_points:
+            print("Init with touch and random points")
+            self.touch_points = torch.nn.Parameter(self.seed_pts[0])
+            random_points = torch.nn.Parameter((torch.rand((500000, 3)) - 0.5) * 10)
+            self.means = torch.nn.Parameter(torch.cat([random_points, self.touch_points], dim=0))
+            # concatenate the touch points and random points
         else:
             self.means = torch.nn.Parameter((torch.rand((500000, 3)) - 0.5) * 10)
+
         self.xys_grad_norm = None
         self.max_2Dsize = None
         distances, _ = self.k_nearest_sklearn(self.means.data, 3)
@@ -206,6 +216,9 @@ class GaussianSplattingModel(Model):
                 shs[:, 0, :3] = torch.logit(self.seed_pts[1] / 255, eps=1e-10)
             self.features_dc = torch.nn.Parameter(shs[:, 0, :])
             self.features_rest = torch.nn.Parameter(shs[:, 1:, :])
+        elif self.config.init_touch_and_random_points:
+            self.features_dc = torch.nn.Parameter(torch.rand(self.num_points, 3))
+            self.features_rest = torch.nn.Parameter(torch.zeros((self.num_points, dim_sh - 1, 3)))
         else:
             self.features_dc = torch.nn.Parameter(torch.rand(self.num_points, 3))
             self.features_rest = torch.nn.Parameter(torch.zeros((self.num_points, dim_sh - 1, 3)))
@@ -744,7 +757,12 @@ class GaussianSplattingModel(Model):
             )[
                 ..., 0:1
             ]  # type: ignore
-        return {"rgb": rgb, "depth": depth_im, "background": background}  # type: ignore
+            
+        # fisher information
+        # assume we can pass in fisher information as the hessian times the inverted hessian on the training views
+        fisher_information = torch.rand(3, 3)
+        
+        return {"rgb": rgb, "depth": depth_im, "background": background, "fisher_information": fisher_information}  # type: ignore
 
     def get_metrics_dict(self, outputs, batch) -> Dict[str, torch.Tensor]:
         """Compute and returns metrics.
@@ -790,6 +808,19 @@ class GaussianSplattingModel(Model):
         # gt_rgb = self.composite_with_background(gt_rgb, outputs["background"])
         gt_img = self.renderer_rgb.blend_background(gt_img)
         
+        # create copy of outputs["rgb"] to avoid in-place operations
+        render = outputs["rgb"]
+        
+        
+        # render.backward(gradient=torch.ones_like(render), retain_graph=True)
+        
+        # params = self.get_gaussian_param_groups()
+        # for p in params:
+        #     print(p)
+        #     print(params[p])
+        #     print(params[p][0].grad)
+        
+        
         Ll1 = torch.abs(gt_img - outputs["rgb"]).mean()
         simloss = 1 - self.ssim(gt_img.permute(2, 0, 1)[None, ...], outputs["rgb"].permute(2, 0, 1)[None, ...])
         if self.config.use_scale_regularization and self.step % 10 == 0:
@@ -813,7 +844,6 @@ class GaussianSplattingModel(Model):
     def get_outputs_for_camera(self, camera: Cameras, obb_box: Optional[OrientedBox] = None) -> Dict[str, torch.Tensor]:
         """Takes in a camera, generates the raybundle, and computes the output of the model.
         Overridden for a camera-based gaussian model.
-
         Args:
             camera: generates raybundle
         """

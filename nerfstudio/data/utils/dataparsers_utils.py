@@ -41,6 +41,9 @@ def get_train_eval_split_fraction(image_filenames: List, train_split_fraction: f
     i_train = i_train[:-1]
     i_eval = np.setdiff1d(i_all, i_train)  # eval images are the remaining images
     assert len(i_eval) == num_eval_images
+    
+    print("train images: ", i_train)
+    print(len(i_train))
 
     return i_train, i_eval
 

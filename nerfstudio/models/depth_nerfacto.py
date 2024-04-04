@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Dict, Tuple, Type
+from matplotlib import pyplot as plt
 
 import torch
 import numpy as np
@@ -133,6 +134,8 @@ class DepthNerfactoModel(NerfactoModel):
                 )
             if "depth_loss" in metrics_dict:
                 loss_dict["depth_loss"] = self.config.depth_loss_mult * metrics_dict["depth_loss"]
+        # if self.config.depth_loss_mult >= 0.005:
+        #     self.config.depth_loss_mult = max(0.005, self.config.depth_loss_mult * 0.99)
         return loss_dict
 
     def get_image_metrics_and_images(
@@ -142,9 +145,16 @@ class DepthNerfactoModel(NerfactoModel):
         scale = 0.25623789273
         metrics, images = super().get_image_metrics_and_images(outputs, batch)
         
+        
         supervised_depth = batch["depth_image"].to(self.device) / scale
         
         outputs["depth"] = outputs["depth"] / scale
+        
+        # plt.imshow(outputs["depth"].cpu().numpy())
+        # plt.show()
+        
+        # ignore depths that are greater than 50
+        supervised_depth[outputs["depth"] > 25] = 0
         
         ground_truth_depth_colormap = colormaps.apply_depth_colormap(supervised_depth)
         predicted_depth_colormap = colormaps.apply_depth_colormap(
@@ -166,6 +176,7 @@ class DepthNerfactoModel(NerfactoModel):
         if "gt_object_depth_image" in batch and "gt_depth_image" in batch:
         
             gt_depth = batch["gt_depth_image"].to(self.device)
+            gt_depth[outputs["depth"] > 25] = 0
             
             gt_object_depth = batch["gt_object_depth_image"].to(self.device)
             
@@ -180,6 +191,7 @@ class DepthNerfactoModel(NerfactoModel):
             metrics["gt_object_depth_mse"] = float(
                 torch.nn.functional.mse_loss(outputs["depth"][object_depth_mask], gt_object_depth[object_depth_mask]).cpu()
             ) / 7.27
+            
         return metrics, images
 
     def _get_sigma(self):

@@ -451,6 +451,9 @@ class Trainer:
             for f in self.checkpoint_dir.glob("*"):
                 if f != ckpt_path:
                     f.unlink()
+    
+    def add_new_training_views(idxs):
+        pass
 
     @profiler.time_function
     def train_iteration(self, step: int) -> TRAIN_INTERATION_OUTPUT:
@@ -468,8 +471,11 @@ class Trainer:
         cpu_or_cuda_str = "cpu" if cpu_or_cuda_str == "mps" else cpu_or_cuda_str
 
         with torch.autocast(device_type=cpu_or_cuda_str, enabled=self.mixed_precision):
-            _, loss_dict, metrics_dict = self.pipeline.get_train_loss_dict(step=step)
+            outputs, loss_dict, metrics_dict, ray_bundle = self.pipeline.get_train_loss_dict(step=step)
+            
             loss = functools.reduce(torch.add, loss_dict.values())
+        
+        # update stuff here
         self.grad_scaler.scale(loss).backward()  # type: ignore
         needs_step = [
             group
@@ -494,8 +500,59 @@ class Trainer:
         # If the gradient scaler is decreased, no optimization step is performed so we should not step the scheduler.
         if scale <= self.grad_scaler.get_scale():
             self.optimizers.scheduler_step_all(step)
-
+            
         # Merging loss and metrics dict into a single output.
+        # get output of model
+        
+        if step % 1000 == 0:
+            if "fisher_information" in outputs:
+                
+                max_fisher_information = 0
+                max_i = 0
+                
+                training_cameras = self.pipeline.datamanager.train_dataset.cameras
+                
+                for idx, val in enumerate(training_cameras):
+                    fisher_information = outputs["fisher_information"]
+                
+                    # compute trace of fisher information
+                    total_fisher_information = torch.trace(fisher_information)
+                    
+                    if total_fisher_information > max_fisher_information:
+                        max_fisher_information = total_fisher_information
+                        max_i = idx
+                    
+                    print(f"Total Fisher Information Camera {idx}: ", total_fisher_information)
+                    
+                # (active learning) add new training views to the dataset
+                self.add_new_training_views([max_i])
+                    
+            # self.optimizers.zero_grad_all()
+            # output = self.pipeline.get_result(ray_bundle)
+            # output["rgb"].backward(gradient=torch.ones_like(output["rgb"]))
+            
+            # param_groups = self.pipeline.model.get_param_groups()
+            
+            # print(self.optimizers.parameters.keys())
+            
+            # for name in param_groups:
+            #     # computes the gradients
+            #     # print(name, param_groups[name][0].grad)
+            #     print(name)
+            
+            # self.optimizers.zero_grad_all()
+            
+            # output = self.pipeline.get_result(ray_bundle)
+            # output["depth"].backward(gradient=torch.ones_like(output["depth"]))
+            
+            # for name in param_groups:
+            #     # computes the gradients
+            #     # print(name, param_groups[name][0].grad)
+            #     print(name)
+            
+            # self.optimizers.zero_grad_all()
+        
+        
         return loss, loss_dict, metrics_dict  # type: ignore
 
     @check_eval_enabled

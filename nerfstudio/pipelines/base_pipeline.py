@@ -147,10 +147,13 @@ class Pipeline(nn.Module):
             self.datamanager.train_sampler.set_epoch(step)
         ray_bundle, batch = self.datamanager.next_train(step)
         model_outputs = self.model(ray_bundle, batch)
+        
+        model_outputs_2 = self.model(ray_bundle, batch)
+        
         metrics_dict = self.model.get_metrics_dict(model_outputs, batch)
         loss_dict = self.model.get_loss_dict(model_outputs, batch, metrics_dict)
 
-        return model_outputs, loss_dict, metrics_dict
+        return model_outputs, loss_dict, metrics_dict, model_outputs_2
 
     @profiler.time_function
     def get_eval_loss_dict(self, step: int):
@@ -295,6 +298,10 @@ class VanillaPipeline(Pipeline):
     def device(self):
         """Returns the device that the model is on."""
         return self.model.device
+    
+    def get_result(self , ray_bundle):
+        model_outputs = self._model(ray_bundle)
+        return model_outputs
 
     @profiler.time_function
     def get_train_loss_dict(self, step: int):
@@ -307,10 +314,11 @@ class VanillaPipeline(Pipeline):
         """
         ray_bundle, batch = self.datamanager.next_train(step)
         model_outputs = self._model(ray_bundle)  # train distributed data parallel model if world_size > 1
+        
         metrics_dict = self.model.get_metrics_dict(model_outputs, batch)
         loss_dict = self.model.get_loss_dict(model_outputs, batch, metrics_dict)
-
-        return model_outputs, loss_dict, metrics_dict
+        
+        return model_outputs, loss_dict, metrics_dict, ray_bundle
 
     def forward(self):
         """Blank forward method
@@ -405,53 +413,77 @@ class VanillaPipeline(Pipeline):
         ) as progress:
             
             percent = 100
+            is_real_world = False
             indices = list(range(num_images))
             num_to_keep = int(len(indices) * percent / 100)
     
-            keep_indices =  random.sample(indices, num_to_keep)
+            keep_indices =  indices
+            # keep_indices = [12, 54, 45, 4, 23, 89, 6, 82, 34, 42, 61, 69, 38, 10, 81, 26, 2, 63, 7, 90, 5, 91, 71, 39, 52, 85, 50, 70, 28, 72, 15, 41, 84, 86, 67, 3, 80, 29, 18, 22]
+            # keep_indices = [58, 140, 67, 150, 9, 185, 143, 129, 123, 69, 226, 32, 17, 127, 92, 74, 94, 71, 231, 88, 61, 120, 155, 38, 220, 164, 65, 77, 6, 50, 2, 4, 160, 139, 189, 146, 210, 133, 1, 39]
             # keep_indices = [58, 32, 15, 60, 40, 61, 41, 42, 23, 76, 31, 17, 39, 8, 27, 70, 43, 26, 62, 52]
             task = progress.add_task("[green]Evaluating all eval images...", total=num_to_keep)
             
             datapath = self.datamanager.get_datapath()
             
-            fname = datapath / f'val_depth_filenames.txt'
-            
-            with open(fname, 'r') as file:
-                depth_filenames = [line.strip() for line in file]
+            if not is_real_world:
+                fname = datapath / f'val_depth_filenames.txt'
+                with open(fname, 'r') as file:
+                    depth_filenames = [line.strip() for line in file]
 
-            
             idx = 0
             for camera, batch in self.datamanager.fixed_indices_eval_dataloader:
                 
-                # gt_scene = get_gt(real_idx)
-                depth_filename = depth_filenames[idx]
-                gt_depth, gt_object_depth, supervised_depth = self.get_ground_truth_scene_and_object_and_supervised(depth_filename)
-                
-                # convert gt_depth and gt_object_depth to torch tensors
-                gt_depth = torch.tensor(gt_depth).unsqueeze(-1)
-                gt_object_depth = torch.tensor(gt_object_depth).unsqueeze(-1)
-                supervised_depth = torch.tensor(supervised_depth).unsqueeze(-1)
-                
-                batch["gt_depth_image"] = gt_depth  
-                batch["gt_object_depth_image"] = gt_object_depth
-                batch["supervised_depth_image"] = supervised_depth
-                
-                # time this the following line
-                inner_start = time()
-                outputs = self.model.get_outputs_for_camera(camera=camera)
-                height, width = camera.height, camera.width
-                num_rays = height * width
-                metrics_dict, _ = self.model.get_image_metrics_and_images(outputs, batch)
-                if output_path is not None:
-                    raise NotImplementedError("Saving images is not implemented yet")
+                if is_real_world:
+                    if idx in keep_indices:
+                        # time this the following line
+                        inner_start = time()
+                        outputs = self.model.get_outputs_for_camera(camera=camera)
+                        height, width = camera.height, camera.width
+                        num_rays = height * width
+                        
+                        batch["is_real_world"] = True  
+                        
+                        metrics_dict, _ = self.model.get_image_metrics_and_images(outputs, batch)
+                        if output_path is not None:
+                            raise NotImplementedError("Saving images is not implemented yet")
 
-                assert "num_rays_per_sec" not in metrics_dict
-                metrics_dict["num_rays_per_sec"] = (num_rays / (time() - inner_start)).item()
-                fps_str = "fps"
-                assert fps_str not in metrics_dict
-                metrics_dict[fps_str] = (metrics_dict["num_rays_per_sec"] / (height * width)).item()
-                metrics_dict_list.append(metrics_dict)
-                progress.advance(task)
+                        assert "num_rays_per_sec" not in metrics_dict
+                        metrics_dict["num_rays_per_sec"] = (num_rays / (time() - inner_start)).item()
+                        fps_str = "fps"
+                        assert fps_str not in metrics_dict
+                        metrics_dict[fps_str] = (metrics_dict["num_rays_per_sec"] / (height * width)).item()
+                        metrics_dict_list.append(metrics_dict)
+                        progress.advance(task)
+                else:
+                    batch["is_real_world"] = False  
+                    depth_filename = depth_filenames[idx]
+                    gt_depth, gt_object_depth, supervised_depth = self.get_ground_truth_scene_and_object_and_supervised(depth_filename)
+                    
+                    # convert gt_depth and gt_object_depth to torch tensors
+                    gt_depth = torch.tensor(gt_depth).unsqueeze(-1)
+                    gt_object_depth = torch.tensor(gt_object_depth).unsqueeze(-1)
+                    supervised_depth = torch.tensor(supervised_depth).unsqueeze(-1)
+                    
+                    batch["gt_depth_image"] = gt_depth  
+                    batch["gt_object_depth_image"] = gt_object_depth
+                    batch["supervised_depth_image"] = supervised_depth
+                    
+                    # time this the following line
+                    inner_start = time()
+                    outputs = self.model.get_outputs_for_camera(camera=camera)
+                    height, width = camera.height, camera.width
+                    num_rays = height * width
+                    metrics_dict, _ = self.model.get_image_metrics_and_images(outputs, batch)
+                    if output_path is not None:
+                        raise NotImplementedError("Saving images is not implemented yet")
+
+                    assert "num_rays_per_sec" not in metrics_dict
+                    metrics_dict["num_rays_per_sec"] = (num_rays / (time() - inner_start)).item()
+                    fps_str = "fps"
+                    assert fps_str not in metrics_dict
+                    metrics_dict[fps_str] = (metrics_dict["num_rays_per_sec"] / (height * width)).item()
+                    metrics_dict_list.append(metrics_dict)
+                    progress.advance(task)
                 
                 idx+=1
         # average the metrics list

@@ -74,6 +74,8 @@ class NerfstudioDataParserConfig(DataParserConfig):
     """The interval between frames to use for eval. Only used when eval_mode is eval-interval."""
     depth_unit_scale_factor: float = 1e-3
     """Scales the depth values to meters. Default value is 0.001 for a millimeter to meter conversion."""
+    load_3d_points: bool = True
+    """Whether to load 3D points from npy files (colors and points)."""
 
 
 @dataclass
@@ -320,6 +322,12 @@ class Nerfstudio(DataParser):
             scale_factor *= applied_scale
         if metadata is None:
             metadata = {}
+            
+        if self.config.load_3d_points:
+            points3D, points3d_rgb = self._load_3D_points(self.config.data, transform_matrix, scale_factor)
+            metadata["points3D_xyz"] = points3D
+            metadata["points3D_rgb"] = points3d_rgb
+            
         dataparser_outputs = DataparserOutputs(
             image_filenames=image_filenames,
             cameras=cameras,
@@ -335,28 +343,38 @@ class Nerfstudio(DataParser):
         )
         return dataparser_outputs
 
-    def _load_3D_points(self, ply_file_path: Path, transform_matrix: torch.Tensor, scale_factor: float):
-        pcd = o3d.io.read_point_cloud(str(ply_file_path))
-
-        points3D = torch.from_numpy(np.asarray(pcd.points, dtype=np.float32))
-        points3D = (
+    def _load_3D_points(self, root_path: Path, transform_matrix: torch.Tensor, scale_factor: float):
+        
+        root_path_str = str(root_path)
+                
+        root_path = root_path_str.split('/')[0]
+        
+        main_point_rgb_path = f'{root_path}/colors_bunny.npy'
+        main_point_xyz_path = f'{root_path}/points_bunny.npy'
+        
+        limited_points_xyz = np.load(main_point_xyz_path)
+        limited_points_rgb = np.load(main_point_rgb_path)
+        
+        print('shape of limited_points_xyz', limited_points_xyz.shape)
+        print('shape of limited_points_rgb', limited_points_rgb.shape)
+        
+        limited_points_xyz = torch.from_numpy(np.array(limited_points_xyz, dtype=np.float32))
+        limited_points_rgb = torch.from_numpy(np.array(limited_points_rgb, dtype=np.uint8))
+        
+        limited_points_xyz = (
             torch.cat(
                 (
-                    points3D,
-                    torch.ones_like(points3D[..., :1]),
+                    limited_points_xyz,
+                    torch.ones_like(limited_points_xyz[..., :1]),
                 ),
                 -1,
             )
-            @ transform_matrix.T
+                @ transform_matrix.T
         )
-        points3D *= scale_factor
-        points3D_rgb = torch.from_numpy((np.asarray(pcd.colors) * 255).astype(np.uint8))
+        limited_points_xyz *= scale_factor
+        
+        return limited_points_xyz, limited_points_rgb
 
-        out = {
-            "points3D_xyz": points3D,
-            "points3D_rgb": points3D_rgb,
-        }
-        return out
 
     def _get_fname(self, filepath: Path, data_dir: Path, downsample_folder_prefix="images_") -> Path:
         """Get the filename of the image file.

@@ -332,8 +332,11 @@ def depth_uncertainty_weighted_loss(
     
     # include uncertainty weighting
     # log_term = torch.log(predicted_uncertainty**2 + EPS)
-    # uncertainty_weight = 0.01
-    uncertainty_weight = 2
+    uncertainty_weight = 1
+    uncertainty_weight = 0.75
+    # uncertainty_weight = 0.25
+    
+    
     
     uncertainty_component = torch.exp(-uncertainty_weight* termination_uncertainty)
     
