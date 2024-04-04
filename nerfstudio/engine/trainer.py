@@ -504,55 +504,6 @@ class Trainer:
         # Merging loss and metrics dict into a single output.
         # get output of model
         
-        if step % 1000 == 0:
-            if "fisher_information" in outputs:
-                
-                max_fisher_information = 0
-                max_i = 0
-                
-                training_cameras = self.pipeline.datamanager.train_dataset.cameras
-                
-                for idx, val in enumerate(training_cameras):
-                    fisher_information = outputs["fisher_information"]
-                
-                    # compute trace of fisher information
-                    total_fisher_information = torch.trace(fisher_information)
-                    
-                    if total_fisher_information > max_fisher_information:
-                        max_fisher_information = total_fisher_information
-                        max_i = idx
-                    
-                    print(f"Total Fisher Information Camera {idx}: ", total_fisher_information)
-                    
-                # (active learning) add new training views to the dataset
-                self.add_new_training_views([max_i])
-                    
-            # self.optimizers.zero_grad_all()
-            # output = self.pipeline.get_result(ray_bundle)
-            # output["rgb"].backward(gradient=torch.ones_like(output["rgb"]))
-            
-            # param_groups = self.pipeline.model.get_param_groups()
-            
-            # print(self.optimizers.parameters.keys())
-            
-            # for name in param_groups:
-            #     # computes the gradients
-            #     # print(name, param_groups[name][0].grad)
-            #     print(name)
-            
-            # self.optimizers.zero_grad_all()
-            
-            # output = self.pipeline.get_result(ray_bundle)
-            # output["depth"].backward(gradient=torch.ones_like(output["depth"]))
-            
-            # for name in param_groups:
-            #     # computes the gradients
-            #     # print(name, param_groups[name][0].grad)
-            #     print(name)
-            
-            # self.optimizers.zero_grad_all()
-        
-        
         return loss, loss_dict, metrics_dict  # type: ignore
 
     @check_eval_enabled
