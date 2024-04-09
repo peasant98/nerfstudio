@@ -17,6 +17,8 @@ Abstracts for the Pipeline class.
 """
 from __future__ import annotations
 
+import os
+
 import typing
 from abc import abstractmethod
 from dataclasses import dataclass, field
@@ -413,14 +415,11 @@ class VanillaPipeline(Pipeline):
         ) as progress:
             
             percent = 100
-            is_real_world = False
+            is_real_world = os.environ.get("IS_REAL_WORLD", "False").lower() == "true"
             indices = list(range(num_images))
             num_to_keep = int(len(indices) * percent / 100)
     
             keep_indices =  indices
-            # keep_indices = [12, 54, 45, 4, 23, 89, 6, 82, 34, 42, 61, 69, 38, 10, 81, 26, 2, 63, 7, 90, 5, 91, 71, 39, 52, 85, 50, 70, 28, 72, 15, 41, 84, 86, 67, 3, 80, 29, 18, 22]
-            # keep_indices = [58, 140, 67, 150, 9, 185, 143, 129, 123, 69, 226, 32, 17, 127, 92, 74, 94, 71, 231, 88, 61, 120, 155, 38, 220, 164, 65, 77, 6, 50, 2, 4, 160, 139, 189, 146, 210, 133, 1, 39]
-            # keep_indices = [58, 32, 15, 60, 40, 61, 41, 42, 23, 76, 31, 17, 39, 8, 27, 70, 43, 26, 62, 52]
             task = progress.add_task("[green]Evaluating all eval images...", total=num_to_keep)
             
             datapath = self.datamanager.get_datapath()
