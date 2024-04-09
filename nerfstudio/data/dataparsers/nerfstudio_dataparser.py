@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 from typing import Literal, Optional, Type
 
@@ -349,11 +350,16 @@ class Nerfstudio(DataParser):
                 
         root_path = root_path_str.split('/')[0]
         
-        main_point_rgb_path = f'{root_path}/colors_bunny.npy'
-        main_point_xyz_path = f'{root_path}/points_bunny.npy'
-        
-        limited_points_xyz = np.load(main_point_xyz_path)
-        limited_points_rgb = np.load(main_point_rgb_path)
+        # for now, we use a hardcoded path to touch points.
+        main_point_rgb_path = f'{root_path}/points_colors.npy'
+        main_point_xyz_path = f'{root_path}/points_touch.npy'
+        if not Path(main_point_rgb_path).exists() or not Path(main_point_xyz_path).exists():
+            limited_points_xyz = np.array([])
+            limited_points_rgb = np.array([])
+        else:
+            print("Reading touch points from GPIS")
+            limited_points_xyz = np.load(main_point_xyz_path)
+            limited_points_rgb = np.load(main_point_rgb_path)
         
         print('shape of limited_points_xyz', limited_points_xyz.shape)
         print('shape of limited_points_rgb', limited_points_rgb.shape)

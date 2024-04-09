@@ -142,7 +142,6 @@ class DepthGaussianSplattingModel(GaussianSplattingModel):
             self.moving_depth_loss_average.append(metrics_dict["depth_loss"])
             self.iter += 1
                 
-            average = torch.sum(torch.stack(self.moving_depth_loss_average)) / len(self.moving_depth_loss_average)
             if self.iter % 2 == 0:
                 # print(average)
                 self.iter = 0
@@ -171,17 +170,6 @@ class DepthGaussianSplattingModel(GaussianSplattingModel):
             supervised_depth = batch["depth_image"].to(self.device) / scale
             
             outputs["depth"] = outputs["depth"] / scale
-            
-            
-            
-            # ground_truth_depth_colormap = colormaps.apply_depth_colormap(supervised_depth)
-            # predicted_depth_colormap = colormaps.apply_depth_colormap(
-            #     outputs["depth"],
-            #     accumulation=outputs["accumulation"],
-            #     near_plane=float(torch.min(ground_truth_depth).cpu()),
-            #     far_plane=float(torch.max(ground_truth_depth).cpu()),
-            # )
-            # images["depth"] = torch.cat([ground_truth_depth_colormap, predicted_depth_colormap], dim=1)
             
             if supervised_depth.shape[1] == 899:
                 supervised_depth = supervised_depth[:548, :898, :]

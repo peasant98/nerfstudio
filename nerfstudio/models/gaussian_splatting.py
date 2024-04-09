@@ -143,7 +143,7 @@ class GaussianSplattingModelConfig(ModelConfig):
     """if a gaussian is more than this percent of screen space, split it"""
     stop_screen_size_at: int = 4000
     """stop culling/splitting at this step WRT screen size of gaussians"""
-    random_init: bool = False
+    random_init: bool = True
     """whether to initialize the positions uniformly randomly (not SFM points)"""
     ssim_lambda: float = 0.2
     """weight of ssim loss"""
@@ -162,7 +162,7 @@ class GaussianSplattingModelConfig(ModelConfig):
     background_color: Literal["random", "last_sample", "black", "white"] = "last_sample"
     output_depth_during_training: bool = True
     """If True, output depth during training. Otherwise, only output depth during evaluation."""
-    init_touch_and_random_points: bool = False
+    init_touch_and_random_points: bool = True
     """If True, initialize the gaussians with touch points and random points. Otherwise, initialize with random points only."""
     
 
