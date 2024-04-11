@@ -33,7 +33,7 @@
     <img alt="nerfstudio" src="https://docs.nerf.studio/_images/logo.png" width="400">
 </p> -->
 
-<p align="center"> A collaboration friendly studio for NeRFs </p>
+<p align="center"> A collaboration friendly studio for NeRFs, ARMLab version </p>
 
 <p align="center">
     <a href="https://docs.nerf.studio">
