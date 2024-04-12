@@ -57,6 +57,8 @@ class DepthGaussianSplattingModelConfig(GaussianSplattingModelConfig):
     """Rate of exponential decay."""
     depth_loss_type: DepthLossType = DepthLossType.SIMPLE_LOSS
     """Depth loss type."""
+    uncertainty_weight: float = 0.0
+    """Weight of the uncertainty in the loss if uncertainty weighted loss is used."""
     
 class DepthGaussianSplattingModel(GaussianSplattingModel):
     """Depth loss augmented splatfacto model.
@@ -79,6 +81,9 @@ class DepthGaussianSplattingModel(GaussianSplattingModel):
     def populate_modules(self):
         """Set the fields and modules."""
         super().populate_modules()
+        
+        print(self.config.depth_loss_type)
+        print(self.config.uncertainty_weight)
         
         self.moving_depth_loss_average = []
         
@@ -119,7 +124,7 @@ class DepthGaussianSplattingModel(GaussianSplattingModel):
                 termination_uncertainty = batch["depth_uncertainty"].to(self.device)
                 
                 metrics_dict["depth_loss"] = depth_uncertainty_weighted_loss(
-                    None, termination_depth, outputs["depth"], termination_uncertainty, None, None, uncertainty_weight=1)
+                    None, termination_depth, outputs["depth"], termination_uncertainty, None, None, uncertainty_weight=self.config.uncertainty_weight)
                 
             elif self.config.depth_loss_type in (DepthLossType.SPARSENERF_RANKING,):
                 metrics_dict["depth_ranking"] = depth_ranking_loss(
