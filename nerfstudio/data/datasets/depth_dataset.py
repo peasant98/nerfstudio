@@ -135,16 +135,14 @@ class DepthDataset(InputDataset):
         
         full_uncertainty_path_str = ""
         
-        if 'fused' in str(full_uncertainty_path):
+        if 'fused_output_dir' in str(full_uncertainty_path):
             full_uncertainty_path_str = str(full_uncertainty_path)
-            full_uncertainty_path_str = full_uncertainty_path_str.replace('fused', 'fused_uncertainty')
-        
+            full_uncertainty_path_str = full_uncertainty_path_str.replace('fused_output_dir', 'fused_output_dir_uncertainty')
             full_uncertainty_path = Path(full_uncertainty_path_str)
       
         use_depth_uncertainty = False
-        if (os.path.exists(full_uncertainty_path) and 'uncertainties' in str(full_uncertainty_path)) or (os.path.exists(full_uncertainty_path) and 'fused_uncertainty' in str(full_uncertainty_path)):
+        if (os.path.exists(full_uncertainty_path)):
             use_depth_uncertainty = True
-            
         if not use_depth_uncertainty:
             return {"depth_image": depth_image}
         else:
