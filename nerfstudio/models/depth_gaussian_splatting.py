@@ -156,7 +156,7 @@ class DepthGaussianSplattingModel(GaussianSplattingModel):
             if "depth_loss" in metrics_dict:
                 loss_dict["depth_loss"] = self.config.depth_loss_mult * metrics_dict["depth_loss"]
         if self.config.depth_loss_mult >= 0.005:
-            self.config.depth_loss_mult = max(0.005, self.config.depth_loss_mult * 0.9995)
+            self.config.depth_loss_mult = max(0.005, self.config.depth_loss_mult * 0.9999)
         return loss_dict
     
     
