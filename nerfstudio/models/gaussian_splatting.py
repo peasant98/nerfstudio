@@ -758,11 +758,7 @@ class GaussianSplattingModel(Model):
                 ..., 0:1
             ]  # type: ignore
             
-        # fisher information
-        # assume we can pass in fisher information as the hessian times the inverted hessian on the training views
-        fisher_information = torch.rand(3, 3)
-        
-        return {"rgb": rgb, "depth": depth_im, "background": background, "fisher_information": fisher_information}  # type: ignore
+        return {"rgb": rgb, "depth": depth_im, "background": background}  # type: ignore
 
     def get_metrics_dict(self, outputs, batch) -> Dict[str, torch.Tensor]:
         """Compute and returns metrics.
