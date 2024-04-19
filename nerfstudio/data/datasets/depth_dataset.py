@@ -114,7 +114,6 @@ class DepthDataset(InputDataset):
             return {"depth_image": self.depths[data["image_idx"]]}
 
         filepath = self.depth_filenames[data["image_idx"]]
-        # print(filepath, data["image_idx"])
         height = int(self._dataparser_outputs.cameras.height[data["image_idx"]])
         width = int(self._dataparser_outputs.cameras.width[data["image_idx"]])
 

@@ -150,12 +150,10 @@ class Pipeline(nn.Module):
         ray_bundle, batch = self.datamanager.next_train(step)
         model_outputs = self.model(ray_bundle, batch)
         
-        model_outputs_2 = self.model(ray_bundle, batch)
-        
         metrics_dict = self.model.get_metrics_dict(model_outputs, batch)
         loss_dict = self.model.get_loss_dict(model_outputs, batch, metrics_dict)
 
-        return model_outputs, loss_dict, metrics_dict, model_outputs_2
+        return model_outputs, loss_dict, metrics_dict
 
     @profiler.time_function
     def get_eval_loss_dict(self, step: int):
@@ -320,7 +318,7 @@ class VanillaPipeline(Pipeline):
         metrics_dict = self.model.get_metrics_dict(model_outputs, batch)
         loss_dict = self.model.get_loss_dict(model_outputs, batch, metrics_dict)
         
-        return model_outputs, loss_dict, metrics_dict, ray_bundle
+        return model_outputs, loss_dict, metrics_dict
 
     def forward(self):
         """Blank forward method
@@ -331,9 +329,9 @@ class VanillaPipeline(Pipeline):
     
     def get_ground_truth_scene_and_object_and_supervised(self, depth_filename):
         
-        gt_depth_filename = depth_filename.replace("depths_2", "gt_depths")
+        gt_depth_filename = depth_filename.replace("resized_depth", "gt_depths_blender")
         
-        gt_object_depth_filename = depth_filename.replace("depths_2", "gpis_depth")
+        gt_object_depth_filename = depth_filename.replace("resized_depth", "touch_depth")
         
         gt_depth = cv2.imread(gt_depth_filename, cv2.IMREAD_ANYDEPTH) / 1000
         
@@ -348,9 +346,6 @@ class VanillaPipeline(Pipeline):
         
         # use the object depth as a mask to get the gt object depth
         gt_object_depth = np.where(object_depth > 0, gt_depth, 0)
-        
-        print(gt_object_depth.shape)
-        print(gt_depth.shape)
         
         return gt_depth, gt_object_depth, depth
         
@@ -457,6 +452,7 @@ class VanillaPipeline(Pipeline):
                     batch["is_real_world"] = False  
                     depth_filename = depth_filenames[idx]
                     gt_depth, gt_object_depth, supervised_depth = self.get_ground_truth_scene_and_object_and_supervised(depth_filename)
+                    
                     
                     # convert gt_depth and gt_object_depth to torch tensors
                     gt_depth = torch.tensor(gt_depth).unsqueeze(-1)

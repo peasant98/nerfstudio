@@ -156,7 +156,11 @@ class DepthGaussianSplattingModel(GaussianSplattingModel):
             if "depth_loss" in metrics_dict:
                 loss_dict["depth_loss"] = self.config.depth_loss_mult * metrics_dict["depth_loss"]
         if self.config.depth_loss_mult >= 0.005:
-            self.config.depth_loss_mult = max(0.005, self.config.depth_loss_mult * 0.9999)
+            self.config.depth_loss_mult = max(0.005, self.config.depth_loss_mult * 0.9995)
+            
+        # if self.config.depth_loss_mult >= 0.01:
+        #     self.config.depth_loss_mult = max(0.01, self.config.depth_loss_mult * 0.9995)
+            
         return loss_dict
     
     
@@ -169,7 +173,7 @@ class DepthGaussianSplattingModel(GaussianSplattingModel):
         
         if not is_real_world:
         
-            scale = 0.25623789273
+            scale = 1.86290600713
             metrics, images = super().get_image_metrics_and_images(outputs, batch)
             
             supervised_depth = batch["depth_image"].to(self.device) / scale
@@ -179,12 +183,10 @@ class DepthGaussianSplattingModel(GaussianSplattingModel):
             if supervised_depth.shape[1] == 899:
                 supervised_depth = supervised_depth[:548, :898, :]
             
-            print(supervised_depth.shape, outputs["depth"].shape, 'supervised_depth')
-            
             supervised_depth_mask = supervised_depth > 0
             metrics["supervised_depth_mse"] = float(
                 torch.nn.functional.mse_loss(outputs["depth"][supervised_depth_mask], supervised_depth[supervised_depth_mask]).cpu()
-            ) / 7.27
+            )
             
             if "gt_object_depth_image" in batch and "gt_depth_image" in batch:
             
@@ -192,17 +194,15 @@ class DepthGaussianSplattingModel(GaussianSplattingModel):
                 
                 gt_object_depth = batch["gt_object_depth_image"].to(self.device)
                 
-                print(gt_depth.shape, gt_object_depth.shape)
-                
                 depth_mask = gt_depth > 0
                 metrics["gt_depth_mse"] = float(
                     torch.nn.functional.mse_loss(outputs["depth"][depth_mask], gt_depth[depth_mask]).cpu()
-                ) / 7.27
+                )
                 
                 object_depth_mask = gt_object_depth > 0
                 metrics["gt_object_depth_mse"] = float(
                     torch.nn.functional.mse_loss(outputs["depth"][object_depth_mask], gt_object_depth[object_depth_mask]).cpu()
-                ) / 7.27
+                )
         else:
             metrics, images = super().get_image_metrics_and_images(outputs, batch)
             

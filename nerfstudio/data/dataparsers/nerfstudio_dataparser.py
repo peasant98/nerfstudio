@@ -228,6 +228,13 @@ class Nerfstudio(DataParser):
                 indices = i_train
             elif split in ["val", "test"]:
                 indices = i_eval
+                eval_depth_filenames = [depth_filenames[i] for i in indices] if len(depth_filenames) > 0 else []
+                
+                depth_filenames_list_name = self.config.data / f'{split}_depth_filenames.txt'
+                
+                with open(depth_filenames_list_name, 'w') as file:
+                    depths = [str(depth) for depth in eval_depth_filenames]
+                    file.write('\n'.join(depths))
             else:
                 raise ValueError(f"Unknown dataparser split {split}")
 

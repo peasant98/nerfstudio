@@ -452,9 +452,6 @@ class Trainer:
                 if f != ckpt_path:
                     f.unlink()
     
-    def add_new_training_views(idxs):
-        pass
-
     @profiler.time_function
     def train_iteration(self, step: int) -> TRAIN_INTERATION_OUTPUT:
         """Run one iteration with a batch of inputs. Returns dictionary of model losses.
@@ -471,11 +468,10 @@ class Trainer:
         cpu_or_cuda_str = "cpu" if cpu_or_cuda_str == "mps" else cpu_or_cuda_str
 
         with torch.autocast(device_type=cpu_or_cuda_str, enabled=self.mixed_precision):
-            outputs, loss_dict, metrics_dict, ray_bundle = self.pipeline.get_train_loss_dict(step=step)
+            _, loss_dict, metrics_dict = self.pipeline.get_train_loss_dict(step=step)
             
             loss = functools.reduce(torch.add, loss_dict.values())
         
-        # update stuff here
         self.grad_scaler.scale(loss).backward()  # type: ignore
         needs_step = [
             group

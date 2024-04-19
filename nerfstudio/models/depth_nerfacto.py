@@ -150,9 +150,6 @@ class DepthNerfactoModel(NerfactoModel):
         
         outputs["depth"] = outputs["depth"] / scale
         
-        # plt.imshow(outputs["depth"].cpu().numpy())
-        # plt.show()
-        
         # ignore depths that are greater than 50
         supervised_depth[outputs["depth"] > 25] = 0
         
@@ -171,7 +168,7 @@ class DepthNerfactoModel(NerfactoModel):
         supervised_depth_mask = supervised_depth > 0
         metrics["supervised_depth_mse"] = float(
             torch.nn.functional.mse_loss(outputs["depth"][supervised_depth_mask], supervised_depth[supervised_depth_mask]).cpu()
-        ) / 7.27
+        )
         
         if "gt_object_depth_image" in batch and "gt_depth_image" in batch:
         
@@ -185,12 +182,12 @@ class DepthNerfactoModel(NerfactoModel):
             depth_mask = gt_depth > 0
             metrics["gt_depth_mse"] = float(
                 torch.nn.functional.mse_loss(outputs["depth"][depth_mask], gt_depth[depth_mask]).cpu()
-            ) / 7.27
+            )
             
             object_depth_mask = gt_object_depth > 0
             metrics["gt_object_depth_mse"] = float(
                 torch.nn.functional.mse_loss(outputs["depth"][object_depth_mask], gt_object_depth[object_depth_mask]).cpu()
-            ) / 7.27
+            )
             
         return metrics, images
 

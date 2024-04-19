@@ -804,19 +804,6 @@ class GaussianSplattingModel(Model):
         # gt_rgb = self.composite_with_background(gt_rgb, outputs["background"])
         gt_img = self.renderer_rgb.blend_background(gt_img)
         
-        # create copy of outputs["rgb"] to avoid in-place operations
-        render = outputs["rgb"]
-        
-        
-        # render.backward(gradient=torch.ones_like(render), retain_graph=True)
-        
-        # params = self.get_gaussian_param_groups()
-        # for p in params:
-        #     print(p)
-        #     print(params[p])
-        #     print(params[p][0].grad)
-        
-        
         Ll1 = torch.abs(gt_img - outputs["rgb"]).mean()
         simloss = 1 - self.ssim(gt_img.permute(2, 0, 1)[None, ...], outputs["rgb"].permute(2, 0, 1)[None, ...])
         if self.config.use_scale_regularization and self.step % 10 == 0:

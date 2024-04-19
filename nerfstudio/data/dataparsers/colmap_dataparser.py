@@ -378,10 +378,9 @@ class ColmapDataParser(DataParser):
 
         metadata = {}
         if split != "train":
-            print(indices, "Cope King")
+            print(indices)
             # save indices for the eval split to root path
             # save depth filenames for the eval split to root path
-            
             depth_filenames_list_name = self.config.data / f'{split}_depth_filenames.txt'
             
             with open(depth_filenames_list_name, 'w') as file:
